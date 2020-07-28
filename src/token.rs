@@ -1,6 +1,7 @@
 #![allow(dead_code)]
 use crate::token_type::TokenType;
 
+#[derive(Debug, PartialEq, Clone)]
 pub struct Token {
     token_type: TokenType,
     starts_at: usize,

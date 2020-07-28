@@ -1,0 +1,2 @@
+print("Ola, world!)
+3

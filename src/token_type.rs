@@ -12,17 +12,24 @@ pub enum TokenType {
     Plus,
     Semicolon,
     Slash,
+    Comment,
     Star,
+    Blank,
+    NewLine,
 
     // One or two character tokens.
     Bang,
     BangEqual,
+    BangEqualEqual,
     Equal,
     EqualEqual,
+    EqualEqualEqual,
     Greater,
     GreaterEqual,
     Less,
     LessEqual,
+    And,
+    Or,
 
     // Literals.
     Identifier(std::string::String),
@@ -30,22 +37,17 @@ pub enum TokenType {
     Number(f64),
 
     // Keywords.
-    And,
     Class,
     Else,
+    True,
     False,
-    Fun,
-    For,
+    Function,
     If,
     Null,
-    Or,
     Print,
     Return,
-    Super,
     This,
-    True,
     Const,
-    While,
 
     Eof,
 }
