@@ -1,2 +1,1 @@
-print("Ola, world!)
-3
+print("Olá, world!")
