@@ -24,6 +24,7 @@ fn main() {
     fn run_file(path: &str) {
         if let Ok(source_code) = read_to_string(path) {
             let lines_vec = create_lines_vec(&source_code);
+            println!("{:?}", lines_vec);
             let mut scan = mint::scanner::Scanner::new(&source_code);
             let tokens = scan.scan_tokens();
             match tokens {

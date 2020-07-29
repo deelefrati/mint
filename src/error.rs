@@ -56,7 +56,7 @@ impl Error {
                 filename
             )
         } else {
-            eprintln!("{}Bethon Error{}:", Color::Red, Color::Reset)
+            eprintln!("{}Error{}:", Color::Red, Color::Reset)
         }
         eprintln!(
             "{} {}",

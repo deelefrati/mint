@@ -1,1 +1,2 @@
-print("Olá, world!")
+const a = 123.
+"aa
