@@ -1,2 +1,2 @@
-const a = 123.
-"aa
+print("ola, mundo!")
+1.1.2

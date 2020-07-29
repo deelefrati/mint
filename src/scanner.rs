@@ -222,24 +222,8 @@ impl<'a> Scanner<'a> {
         self.take_while(is_digit);
         if self.peek() == Some('.') {
             self.advance();
-            if let Some(c) = self.peek() {
-                if !is_digit(c) {
-                    return Err(Error::Scanner(ScannerError::InvalidToken(
-                        self.line,
-                        format!("Failed parsing number {}", &self.consumed()),
-                        0,
-                        0,
-                    )));
-                }
-            } else {
-                return Err(Error::Scanner(ScannerError::InvalidToken(
-                    self.line,
-                    format!("Failed parsing number {}", &self.consumed()),
-                    0,
-                    0,
-                )));
-            }
             self.take_while(is_digit);
+
             Ok(TokenType::Number(self.consumed().parse().unwrap()))
         } else {
             Ok(TokenType::Number(self.consumed().parse().unwrap()))
@@ -264,7 +248,7 @@ impl<'a> Scanner<'a> {
             "class" => Some(Class),
             "else" => Some(Else),
             "false" => Some(False),
-            "fun" => Some(Function),
+            "function" => Some(Function),
             "if" => Some(If),
             "null" => Some(Null),
             "console.log" => Some(Print),
