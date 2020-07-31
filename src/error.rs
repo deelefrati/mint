@@ -45,8 +45,7 @@ impl Error {
     pub fn show_error(
         &self,
         file: Option<&str>,
-        source_vec: Option<&[(usize, usize)]>,
-        source_code: Option<&str>,
+        source_vec: Option<&[String]>,
     ) {
         if let Some(filename) = file {
             eprintln!(
@@ -61,14 +60,13 @@ impl Error {
         eprintln!(
             "{} {}",
             self.blue_pipe(),
-            self.format_error(source_vec, source_code)
+            self.format_error(source_vec)
         );
     }
 
     fn format_error(
         &self,
-        source_vec: Option<&[(usize, usize)]>,
-        source_code: Option<&str>,
+        source_vec: Option<&[String]>,
     ) -> String {
         use Error::*;
 
@@ -85,7 +83,7 @@ impl Error {
                 Color::Reset
             ),
             Scanner(scanner_error) => {
-                self.format_scanner_error(scanner_error, source_vec.unwrap(), source_code.unwrap())
+                self.format_scanner_error(scanner_error, source_vec.unwrap())
             }
             _ => unimplemented!("Not implemented yet"),
         }
@@ -94,33 +92,33 @@ impl Error {
     fn format_scanner_error(
         &self,
         error: &ScannerError,
-        source_vec: &[(usize, usize)],
-        source_code: &str,
+        source_vec: &[String],
     ) -> String {
         use ScannerError::*;
         match error {
-            InvalidToken(line, line_start, line_end, note) => format!(
-                "{}Syntax error in line {} from column {} to {}: \n{}\n{} '{}'\n{}\n{} {}Reason: {}{}",
+            InvalidToken(line,note, line_start, line_end) => format!(
+                "{}Syntax error in line {} from column {} to {}: \n{}\n{} '{}'\n{}{}\n{} {}Reason: {}{}",
                 Color::White,
                 line,
                 line_start,
                 line_end,
                 self.blue_pipe(),
                 self.blue_pipe(),
-                &source_code[source_vec.get(*line -1).unwrap().0 .. source_vec.get(*line -1).unwrap().1], //source_vec.get(*line - 1).unwrap(),
+                source_vec.get(*line -1).unwrap(), 
                 self.blue_pipe(),
+                self.print_marker(*line_start, *line_end),
                 self.blue_pipe(),
                 Color::Yellow,
                 note,
                 Color::Reset
             ),
             UnterminatedString(line) => format!(
-                "{}Unterminated String error from line {} to the end of file:\n{} \n{}'{}'\n{}\n{} {}Note: Maybe you forgot a '\"'?{}",
+                "{}Unterminated String error from line {} to the end of file:\n{} \n{}'{}'\n{}\n{} {}Note: Every string must start and finish with a quotation mark, (e.g \"string\"). Maybe you forgot one?{}",
                 Color::White,
                 line,
                 self.blue_pipe(),
                 self.blue_pipe(),
-                &source_code[source_vec.get(*line -1).unwrap().0 .. source_vec.get(*line -1).unwrap().1], //source_vec.get(*line - 1).expect(""),
+                source_vec.get(*line -1).unwrap(),
                 self.blue_pipe(),
                 self.blue_pipe(),
                 Color::Yellow,
@@ -128,4 +126,19 @@ impl Error {
             ),
         }
     }
+
+    fn print_marker(&self, start: usize, end: usize ) -> String{
+        let mut arrow: String = "  ".to_string();
+        for i in 0..end {
+            if i >= start {
+                arrow.push('^');
+            }else{
+                arrow.push(' ');
+            }
+        }
+        arrow
+    }
+
 }
+
+

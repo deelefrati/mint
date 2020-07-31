@@ -10,8 +10,8 @@ pub struct Scanner<'a> {
     source: &'a str,
     chars: Chars<'a>,
     tokens: Vec<Token>,
-    start: usize,
-    // current: usize,
+    start_token: usize,
+    end_token: usize,
     line: usize,
 }
 
@@ -21,8 +21,8 @@ impl<'a> Scanner<'a> {
             source,
             tokens: vec![],
             chars: source.chars(),
-            start: 0,
-            // current: 0,
+            start_token: 0,
+            end_token: 0,
             line: 1,
         }
     }
@@ -95,8 +95,8 @@ impl<'a> Scanner<'a> {
                     Err(Error::Scanner(ScannerError::InvalidToken(
                         self.line,
                         std::string::String::from("Did you mean  \"&&\""), //TODO formartar erro corretamente
-                        0,
-                        0,
+                        self.start_token,
+                        self.end_token,
                     )))
                 }
                 Err(error) => Err(error),
@@ -107,8 +107,8 @@ impl<'a> Scanner<'a> {
                     Err(Error::Scanner(ScannerError::InvalidToken(
                         self.line,
                         std::string::String::from("Did you mean  \"||\""), //TODO formartar erro corretamente
-                        0,
-                        0,
+                        self.start_token,
+                        self.end_token,
                     )))
                 }
                 Err(error) => Err(error),
@@ -123,12 +123,11 @@ impl<'a> Scanner<'a> {
                 } else if is_alpha(c.unwrap()) {
                     self.identifier()
                 } else {
-                    // FIXME counters
                     Err(Error::Scanner(ScannerError::InvalidToken(
                         self.line,
-                        "".to_string(),
-                        0,
-                        0,
+                        "Invalid character".to_string(),
+                        self.start_token,
+                        self.end_token,
                     )))
                 }
             }
@@ -139,10 +138,14 @@ impl<'a> Scanner<'a> {
     pub fn scan_tokens(&mut self) -> Result<&Vec<Token>, Error> {
         use TokenType::*;
         while !self.is_at_end() {
-            // self.start = self.current;
+            self.start_token = self.end_token;
             match self.scan_token() {
                 Ok(token) => match token {
-                    NewLine | Blank | Comment => (),
+                    NewLine => {
+                        self.start_token = 0;
+                        self.end_token = 0;
+                    }
+                    Blank | Comment => (),
                     _ => self.add_token(token),
                 },
                 Err(scanner_error) => return Err(scanner_error),
@@ -154,10 +157,12 @@ impl<'a> Scanner<'a> {
     }
 
     fn add_token(&mut self, tt: TokenType) {
-        self.tokens.push(Token::new(tt, self.line, 0, 0));
+        self.tokens
+            .push(Token::new(tt, self.line, self.start_token, self.end_token));
     }
 
     fn advance(&mut self) -> Option<char> {
+        self.end_token += 1;
         self.chars.next()
     }
 
@@ -218,13 +223,31 @@ impl<'a> Scanner<'a> {
     }
 
     fn number(&mut self) -> Result<TokenType, Error> {
-        // FIXME: should not accept 123.
         self.take_while(is_digit);
-        if self.peek() == Some('.') {
+        if Some('.') == self.peek() {
             self.advance();
-            self.take_while(is_digit);
-
-            Ok(TokenType::Number(self.consumed().parse().unwrap()))
+            if is_digit(self.peek().unwrap_or(' ')) {
+                self.take_while(is_digit);
+                if Some('.') == self.peek() {
+                    self.advance();
+                    self.take_while(is_digit);
+                    return Err(Error::Scanner(ScannerError::InvalidToken(
+                        self.line,
+                        format!("Failed parsing number {}", &self.consumed()),
+                        self.start_token,
+                        self.end_token,
+                    )));
+                } else {
+                    Ok(TokenType::Number(self.consumed().parse::<f64>().unwrap()))
+                }
+            } else {
+                Err(Error::Scanner(ScannerError::InvalidToken(
+                    self.line,
+                    format!("Failed parsing number {}", &self.consumed()),
+                    self.start_token,
+                    self.end_token,
+                )))
+            }
         } else {
             Ok(TokenType::Number(self.consumed().parse().unwrap()))
         }

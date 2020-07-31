@@ -9,14 +9,14 @@ fn main() {
     let mut arguments = args();
     if arguments.len() > 2 {
         let error = Error::Input(String::from("Too many arguments."));
-        error.show_error(None, None, None);
+        error.show_error(None, None);
         exit(1);
     } else {
         if let Some(path) = arguments.nth(1) {
             run_file(&path)
         } else {
             let error = Error::Input(String::from("Too few  arguments were passed."));
-            error.show_error(None, None, None);
+            error.show_error(None, None);
             exit(1);
         }
     }
@@ -29,7 +29,7 @@ fn main() {
             let tokens = scan.scan_tokens();
             match tokens {
                 Ok(vec) => println!("{:?}", vec),
-                Err(error) => error.show_error(Some(path), Some(&lines_vec), Some(&source_code)),
+                Err(error) => error.show_error(Some(path), Some(&lines_vec)),
             }
         }
     }
