@@ -1,2 +1,5 @@
-print(hello, word")
-ajsdhajsh
+a = b
+
+a == b
+
+a===b

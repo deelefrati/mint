@@ -42,113 +42,107 @@ impl<'a> Scanner<'a> {
         &self.source[..len]
     }
 
-    fn is_at_end(&self) -> bool {
-        self.chars.clone().next().is_none()
-    }
+    // fn is_at_end(&self) -> bool {
+    //     self.chars.clone().next().is_none()
+    // }
 
-    fn scan_token(&mut self) -> Result<TokenType, Error> {
+    fn scan_token(&mut self) -> Result<Option<TokenType>, Error> {
         use TokenType::*;
-        let c = self.advance();
-        match c {
-            Some('(') => Ok(LeftParen),
-            Some(')') => Ok(RightParen),
-            Some('{') => Ok(LeftBrace),
-            Some('}') => Ok(RightBrace),
-            Some(',') => Ok(Comma),
-            Some('.') => Ok(Dot),
-            Some('-') => Ok(Minus),
-            Some('+') => Ok(Plus),
-            Some('*') => Ok(Star),
-            Some('!') => match self.match_char('=') {
-                Ok(true) => match self.match_char('=') {
-                    Ok(true) => Ok(BangEqualEqual),
+        if let Some(c) = self.advance() {
+            let token = match c {
+                '(' => LeftParen,
+                ')' => RightParen,
+                '{' => LeftBrace,
+                '}' => RightBrace,
+                ',' => Comma,
+                '.' => Dot,
+                '-' => Minus,
+                '+' => Plus,
+                '*' => Star,
+                '!' => self.match_char_or_else_or_else('=', BangEqualEqual, BangEqual, Bang),
+                '=' => self.match_char_or_else_or_else('=', EqualEqualEqual, EqualEqual, Equal),
+                '<' => self.match_char_or_else('=', LessEqual, Less),
+                '>' => self.match_char_or_else('=', GreaterEqual, Greater),
+                '&' => {
+                    if self.match_char('&') {
+                        And
+                    } else {
+                        return Err(Error::Scanner(ScannerError::InvalidToken(
+                            self.line,
+                            std::string::String::from("Did you mean  \"&&\""), //TODO formartar erro corretamente
+                            self.start_token,
+                            self.end_token,
+                        )));
+                    }
+                }
 
-                    Ok(false) => Ok(BangEqual),
-                    Err(error) => Err(error),
-                },
-                Ok(false) => Ok(Bang),
-                Err(error) => Err(error),
-            },
-            Some('=') => match self.match_char('=') {
-                Ok(true) => match self.match_char('=') {
-                    Ok(true) => Ok(EqualEqualEqual),
-
-                    Ok(false) => Ok(EqualEqual),
-                    Err(error) => Err(error),
-                },
-                Ok(false) => Ok(Equal),
-                Err(error) => Err(error),
-            },
-            Some('<') => match self.match_char('=') {
-                Ok(true) => Ok(LessEqual),
-                Ok(false) => Ok(Less),
-                Err(error) => Err(error),
-            },
-            Some('>') => match self.match_char('=') {
-                Ok(true) => Ok(GreaterEqual),
-                Ok(false) => Ok(Greater),
-                Err(error) => Err(error),
-            },
-            Some('&') => match self.match_char('&') {
-                Ok(true) => Ok(And),
-                Ok(false) => {
-                    Err(Error::Scanner(ScannerError::InvalidToken(
-                        self.line,
-                        std::string::String::from("Did you mean  \"&&\""), //TODO formartar erro corretamente
-                        self.start_token,
-                        self.end_token,
-                    )))
+                '|' => {
+                    if self.match_char('|') {
+                        Or
+                    } else {
+                        return Err(Error::Scanner(ScannerError::InvalidToken(
+                            self.line,
+                            std::string::String::from("Did you mean  \"||\""), //TODO formartar erro corretamente
+                            self.start_token,
+                            self.end_token,
+                        )));
+                    }
                 }
-                Err(error) => Err(error),
-            },
-            Some('|') => match self.match_char('|') {
-                Ok(true) => Ok(Or),
-                Ok(false) => {
-                    Err(Error::Scanner(ScannerError::InvalidToken(
-                        self.line,
-                        std::string::String::from("Did you mean  \"||\""), //TODO formartar erro corretamente
-                        self.start_token,
-                        self.end_token,
-                    )))
+                '/' => self.slash_or_comment(),
+                ' ' | '\r' | '\t' => Blank,
+                '\n' => self.newline(),
+                '"' => {
+                    if let Some(string) = self.string() {
+                        string
+                    } else {
+                        return Err(Error::Scanner(ScannerError::UnterminatedString(self.line)));
+                    }
                 }
-                Err(error) => Err(error),
-            },
-            Some('/') => self.slash_or_comment(),
-            Some(' ') | Some('\r') | Some('\t') => Ok(Blank),
-            Some('\n') => Ok(self.newline()),
-            Some('"') => self.string(),
-            Some(_) => {
-                if is_digit(c.unwrap()) {
-                    self.number()
-                } else if is_alpha(c.unwrap()) {
-                    self.identifier()
-                } else {
-                    Err(Error::Scanner(ScannerError::InvalidToken(
-                        self.line,
-                        "Invalid character".to_string(),
-                        self.start_token,
-                        self.end_token,
-                    )))
+                c => {
+                    if is_digit(c) {
+                        if let Some(number) = self.number() {
+                            number
+                        } else {
+                            return Err(Error::Scanner(ScannerError::InvalidToken(
+                                self.line,
+                                format!("Failed parsing number {}", &self.consumed()),
+                                self.start_token,
+                                self.end_token,
+                            )));
+                        }
+                    } else if is_alpha(c) {
+                        self.identifier()
+                    } else {
+                        return Err(Error::Scanner(ScannerError::InvalidToken(
+                            self.line,
+                            "Invalid character".to_string(),
+                            self.start_token,
+                            self.end_token,
+                        )));
+                    }
                 }
-            }
-            None => panic!("Unexpected error at scan token"),
+            };
+            Ok(Some(token))
+        } else {
+            Ok(None)
         }
     }
 
     pub fn scan_tokens(&mut self) -> Result<&Vec<Token>, Error> {
         use TokenType::*;
-        while !self.is_at_end() {
+        loop {
             self.start_token = self.end_token;
-            match self.scan_token() {
-                Ok(token) => match token {
+            if let Some(token) = self.scan_token()? {
+                match token {
                     NewLine => {
                         self.start_token = 0;
                         self.end_token = 0;
                     }
                     Blank | Comment => (),
                     _ => self.add_token(token),
-                },
-                Err(scanner_error) => return Err(scanner_error),
+                }
+            } else {
+                break;
             }
             self.source = self.chars.as_str();
         }
@@ -162,36 +156,65 @@ impl<'a> Scanner<'a> {
     }
 
     fn advance(&mut self) -> Option<char> {
-        self.end_token += 1;
-        self.chars.next()
-    }
-
-    fn match_char(&mut self, expected: char) -> Result<bool, Error> {
-        if let Some(c) = self.peek() {
-            if self.is_at_end() {
-                Ok(false)
-            } else if c != expected {
-                Ok(false)
-            } else {
-                self.advance();
-                Ok(true)
-            }
+        if let Some(ch) = self.chars.next() {
+            self.end_token += 1;
+            Some(ch)
         } else {
-            Err(Error::Unexpected)
+            None
         }
     }
 
-    fn slash_or_comment(&mut self) -> Result<TokenType, Error> {
-        match self.match_char('/') {
-            Ok(true) => {
+    fn match_char(&mut self, expected: char) -> bool {
+        if Some(expected) == self.peek() {
+            self.advance();
+            true
+        } else {
+            false
+        }
+    }
+
+    fn match_char_or_else(&mut self, expected: char, tt1: TokenType, tt2: TokenType) -> TokenType {
+        if Some(expected) == self.peek() {
+            self.advance();
+            tt1
+        } else {
+            self.advance();
+            tt2
+        }
+    }
+
+    fn match_char_or_else_or_else(
+        &mut self,
+        expected: char,
+        tt1: TokenType,
+        tt2: TokenType,
+        tt3: TokenType,
+    ) -> TokenType {
+        if Some(expected) == self.peek() {
+            self.advance();
+            if Some(expected) == self.peek() {
                 self.advance();
-                while self.peek() != Some('\n') && !self.is_at_end() {
-                    self.advance();
-                }
-                Ok(TokenType::Comment)
+                tt1
+            } else {
+                self.advance();
+                tt2
             }
-            Ok(false) => Ok(TokenType::Slash),
-            Err(error) => Err(error),
+        } else {
+            self.advance();
+            tt3
+        }
+    }
+
+    fn slash_or_comment(&mut self) -> TokenType {
+        if self.match_char('/') {
+            self.advance();
+            // self.take_while(|ch| ch != '\n');
+            while self.peek() != Some('\n') {
+                self.advance();
+            }
+            TokenType::Comment
+        } else {
+            TokenType::Slash
         }
     }
 
@@ -199,22 +222,25 @@ impl<'a> Scanner<'a> {
         self.chars.clone().next()
     }
 
+    fn double_peek(&self) -> Option<char> {
+        let mut c = self.chars.clone();
+        c.next();
+        c.next()
+    }
+
     fn newline(&mut self) -> TokenType {
         self.line += 1;
         TokenType::NewLine
     }
 
-    fn string(&mut self) -> Result<TokenType, Error> {
-        let starting_line = self.line;
+    fn string(&mut self) -> Option<TokenType> {
         self.take_while(|ch| ch != '"');
         if self.peek() == Some('"') {
             let string = TokenType::String(self.consumed()[1..].into());
             self.advance();
-            Ok(string)
+            Some(string)
         } else {
-            Err(Error::Scanner(ScannerError::UnterminatedString(
-                starting_line,
-            )))
+            None
         }
     }
 
@@ -222,7 +248,7 @@ impl<'a> Scanner<'a> {
         &self.source[start..finish]
     }
 
-    fn number(&mut self) -> Result<TokenType, Error> {
+    fn number(&mut self) -> Option<TokenType> {
         self.take_while(is_digit);
         if Some('.') == self.peek() {
             self.advance();
@@ -231,37 +257,27 @@ impl<'a> Scanner<'a> {
                 if Some('.') == self.peek() {
                     self.advance();
                     self.take_while(is_digit);
-                    return Err(Error::Scanner(ScannerError::InvalidToken(
-                        self.line,
-                        format!("Failed parsing number {}", &self.consumed()),
-                        self.start_token,
-                        self.end_token,
-                    )));
+                    None
                 } else {
-                    Ok(TokenType::Number(self.consumed().parse::<f64>().unwrap()))
+                    Some(TokenType::Number(self.consumed().parse::<f64>().unwrap()))
                 }
             } else {
-                Err(Error::Scanner(ScannerError::InvalidToken(
-                    self.line,
-                    format!("Failed parsing number {}", &self.consumed()),
-                    self.start_token,
-                    self.end_token,
-                )))
+                None
             }
         } else {
-            Ok(TokenType::Number(self.consumed().parse().unwrap()))
+            Some(TokenType::Number(self.consumed().parse().unwrap()))
         }
     }
 
-    fn identifier(&mut self) -> Result<TokenType, Error> {
+    fn identifier(&mut self) -> TokenType {
         self.take_while(is_alphanumeric);
 
         // Check if the text is a reserved word
         let text = self.consumed();
         if let Some(tt) = self.is_keyword(&text) {
-            Ok(tt)
+            tt
         } else {
-            Ok(TokenType::Identifier(String::from(text)))
+            TokenType::Identifier(String::from(text))
         }
     }
 
