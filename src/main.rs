@@ -1,5 +1,6 @@
 use mint::create_lines_vec;
 use mint::error::Error;
+use mint::parser::Parser;
 use std::env::args;
 use std::fs::read_to_string;
 use std::process::exit;
@@ -24,11 +25,21 @@ fn main() {
     fn run_file(path: &str) {
         if let Ok(source_code) = read_to_string(path) {
             let lines_vec = create_lines_vec(&source_code);
-            println!("{:?}", lines_vec);
             let mut scan = mint::scanner::Scanner::new(&source_code);
             let tokens = scan.scan_tokens();
             match tokens {
-                Ok(vec) => println!("{:?}", vec),
+                Ok(vec) => {
+                    // println!("{:?}", vec);
+                    let mut parser = Parser::new(vec);
+                    match parser.parse() {
+                        Ok(stmts) => println!("{:?}", stmts),
+                        Err(errors) => {
+                            for error in errors {
+                                error.show_error(Some(path), Some(&lines_vec))
+                            }
+                        }
+                    }
+                }
                 Err(error) => error.show_error(Some(path), Some(&lines_vec)),
             }
         }

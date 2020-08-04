@@ -1,4 +1,3 @@
-#![allow(dead_code)]
 use crate::error::{Error, ScannerError};
 use crate::token::Token;
 use crate::token_type::TokenType;
@@ -42,10 +41,6 @@ impl<'a> Scanner<'a> {
         &self.source[..len]
     }
 
-    // fn is_at_end(&self) -> bool {
-    //     self.chars.clone().next().is_none()
-    // }
-
     fn scan_token(&mut self) -> Result<Option<TokenType>, Error> {
         use TokenType::*;
         if let Some(c) = self.advance() {
@@ -59,6 +54,7 @@ impl<'a> Scanner<'a> {
                 '-' => Minus,
                 '+' => Plus,
                 '*' => Star,
+                '%' => Mod,
                 '!' => self.match_char_or_else_or_else('=', BangEqualEqual, BangEqual, Bang),
                 '=' => self.match_char_or_else_or_else('=', EqualEqualEqual, EqualEqual, Equal),
                 '<' => self.match_char_or_else('=', LessEqual, Less),
@@ -178,7 +174,6 @@ impl<'a> Scanner<'a> {
             self.advance();
             tt1
         } else {
-            self.advance();
             tt2
         }
     }
@@ -200,7 +195,6 @@ impl<'a> Scanner<'a> {
                 tt2
             }
         } else {
-            self.advance();
             tt3
         }
     }
@@ -222,12 +216,6 @@ impl<'a> Scanner<'a> {
         self.chars.clone().next()
     }
 
-    fn double_peek(&self) -> Option<char> {
-        let mut c = self.chars.clone();
-        c.next();
-        c.next()
-    }
-
     fn newline(&mut self) -> TokenType {
         self.line += 1;
         TokenType::NewLine
@@ -242,10 +230,6 @@ impl<'a> Scanner<'a> {
         } else {
             None
         }
-    }
-
-    fn source_substring(&self, start: usize, finish: usize) -> &str {
-        &self.source[start..finish]
     }
 
     fn number(&mut self) -> Option<TokenType> {

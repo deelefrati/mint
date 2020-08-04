@@ -3,7 +3,7 @@
 pub enum Error {
     Input(String),
     Scanner(ScannerError),
-    Parse,
+    Parser(ParserError),
     Runtime,
     Unexpected,
 }
@@ -11,6 +11,12 @@ pub enum Error {
 pub enum ScannerError {
     InvalidToken(usize, String, usize, usize),
     UnterminatedString(usize),
+}
+
+#[derive(Debug, PartialEq, Clone)]
+pub enum ParserError {
+    Missing(usize, String),
+    MissingExpression(usize)
 }
 
 #[allow(dead_code)]

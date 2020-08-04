@@ -18,4 +18,12 @@ impl Token {
             ends_at,
         }
     }
+
+    pub fn token_type(&self) -> &TokenType {
+        &self.token_type
+    }
+
+    pub fn line(&self) -> usize {
+        self.line
+    }
 }

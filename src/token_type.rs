@@ -10,6 +10,7 @@ pub enum TokenType {
     Dot,
     Minus,
     Plus,
+    Mod,
     Semicolon,
     Slash,
     Comment,
