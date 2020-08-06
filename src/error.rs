@@ -91,6 +91,9 @@ impl Error {
             Scanner(scanner_error) => {
                 self.format_scanner_error(scanner_error, source_vec.unwrap())
             }
+            Parser(parser_error) => {
+                self.format_parser_error(parser_error, source_vec.unwrap())
+            }
             _ => unimplemented!("Not implemented yet"),
         }
     }
@@ -125,6 +128,40 @@ impl Error {
                 self.blue_pipe(),
                 self.blue_pipe(),
                 source_vec.get(*line -1).unwrap(),
+                self.blue_pipe(),
+                self.blue_pipe(),
+                Color::Yellow,
+                Color::Reset
+            ),
+        }
+    }
+
+    fn format_parser_error(&self, error: &ParserError, source_vec: &[String]) -> String {
+        use ParserError::*;
+        match error {
+            Missing(line, string) => {
+                    format!(
+                        "{}Syntax error in line {}: \n{}\n{} '{}'\n{}\n{} {}{}{}",
+                        Color::White,
+                        line,
+                        self.blue_pipe(),
+                        self.blue_pipe(),
+                        source_vec.get(*line - 1).unwrap(),
+                        self.blue_pipe(),
+                        self.blue_pipe(),
+                        Color::Yellow,
+                        string,
+                        Color::Reset,
+                    )
+                
+            }
+            MissingExpression(line) => format!(
+                "{}Syntax error in line {}:\n{}\n{} '{}'\n{}\n{}{} Reason: Missing an expression{}",
+                Color::White,
+                line,
+                self.blue_pipe(),
+                self.blue_pipe(),
+                source_vec.get(line - 1).unwrap(),
                 self.blue_pipe(),
                 self.blue_pipe(),
                 Color::Yellow,
