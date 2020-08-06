@@ -9,13 +9,16 @@ use std::vec::Vec;
 
 pub struct Parser<'a> {
     tokens: &'a [Token],
-    current: usize,
+    current_line: usize,
 }
 
 use TokenType::*;
 impl<'a> Parser<'a> {
     pub fn new(tokens: &'a [Token]) -> Self {
-        Self { tokens, current: 0 }
+        Self {
+            tokens,
+            current_line: 1,
+        }
     }
 
     pub fn parse(&mut self) -> Result<Vec<Stmt>, Vec<Error>> {
@@ -49,8 +52,13 @@ impl<'a> Parser<'a> {
     }
 
     fn advance(&mut self) -> Option<&Token> {
-        self.tokens = &self.tokens[1..]; //FIXME
-        Some(&self.tokens[0])
+        if let Some((first, rest)) = self.tokens.split_first() {
+            self.tokens = rest;
+            self.current_line = first.line();
+            Some(first)
+        } else {
+            None
+        }
     }
 
     fn statement(&mut self) -> Result<Stmt, ParserError> {
@@ -137,17 +145,17 @@ impl<'a> Parser<'a> {
     }
 
     fn primary(&mut self) -> Result<Expr, ParserError> {
-        if let Some(_) = self.next_is(|tt| match tt {
+        if let Some((_, token)) = self.next_is(|tt| match tt {
             LeftParen => Some(LeftParen),
             _ => None,
         }) {
             let expr = self.expression()?;
-            match self.consume(
-                RightParen,
-                "Expected a ')' after this expression".to_string(),
-            ) {
-                Ok(_) => Ok(Expr::Grouping(expr.into())),
-                Err(error) => Err(error),
+            match self.consume(RightParen) {
+                Some(_) => Ok(Expr::Grouping(expr.into())),
+                None => Err(ParserError::Missing(
+                    token.line(),
+                    "Expected a ')' after this expression".to_string(),
+                )),
             }
         } else if let Some(op_and_token) = self.next_is(|tt| match tt {
             Number(num) => Some(Value::Number(*num)),
@@ -159,12 +167,12 @@ impl<'a> Parser<'a> {
         }) {
             Ok(Expr::Literal(op_and_token))
         } else {
-            Err(ParserError::MissingExpression(self.peek().unwrap().line())) //FIXME retirar o unwrap
+            Err(ParserError::MissingExpression(self.current_line))
         }
     }
 
     fn next_is<T>(&mut self, fun: impl Fn(&TokenType) -> Option<T>) -> Option<(T, Token)> {
-        if let Some(token) = self.tokens.get(self.current) {
+        if let Some(token) = self.tokens.first() {
             if let Some(t) = fun(token.token_type()) {
                 self.advance();
                 return Some((t, token.clone()));
@@ -181,22 +189,11 @@ impl<'a> Parser<'a> {
         }
     }
 
-    fn consume(
-        &mut self,
-        tt: TokenType,
-        error_message: std::string::String,
-    ) -> Result<Option<&Token>, ParserError> {
+    fn consume(&mut self, tt: TokenType) -> Option<&Token> {
         if self.check_type(tt) {
-            Ok(self.advance())
+            self.advance()
         } else {
-            if let Some(token) = self.peek() {
-                Err(ParserError::Missing(
-                    token.line(),
-                    error_message.to_string(),
-                ))
-            } else {
-                Ok(None) //FIXME esse caso nunca acontece
-            }
+            None
         }
     }
 }
