@@ -73,18 +73,42 @@ impl<'a> Parser<'a> {
     }
 
     fn expression(&mut self) -> Result<Expr, ParserError> {
-        self.equality()
+        self.or()
+    }
+
+    fn or(&mut self) -> Result<Expr, ParserError> {
+        let mut expr = self.and()?;
+        while let Some(op_and_token) = self.next_is(|tt| match tt {
+            Or => Some(LogicalOp::Or),
+            _ => None,
+        }) {
+            let right = self.and()?;
+            expr = Expr::Logical(expr.into(), op_and_token, right.into());
+        }
+        Ok(expr)
+    }
+
+    fn and(&mut self) -> Result<Expr, ParserError> {
+        let mut expr = self.equality()?;
+        while let Some(op_and_token) = self.next_is(|tt| match tt {
+            And => Some(LogicalOp::And),
+            _ => None,
+        }) {
+            let right = self.equality()?;
+            expr = Expr::Logical(expr.into(), op_and_token, right.into());
+        }
+        Ok(expr)
     }
 
     fn equality(&mut self) -> Result<Expr, ParserError> {
         let mut expr = self.comparison()?;
         while let Some(op_and_token) = self.next_is(|tt| match tt {
-            EqualEqual => Some(BinaryOp::Equal),
-            EqualEqualEqual => Some(BinaryOp::TypedEqual),
+            EqualEqual => Some(ComparationOp::Equal),
+            EqualEqualEqual => Some(ComparationOp::TypedEqual),
             _ => None,
         }) {
             let right = self.comparison()?;
-            expr = Expr::Binary(expr.into(), op_and_token, right.into());
+            expr = Expr::Comparation(expr.into(), op_and_token, right.into());
         }
         Ok(expr)
     }
@@ -92,14 +116,14 @@ impl<'a> Parser<'a> {
     fn comparison(&mut self) -> Result<Expr, ParserError> {
         let mut expr = self.addition()?;
         while let Some(op_and_token) = self.next_is(|tt| match tt {
-            Greater => Some(BinaryOp::GreaterThan),
-            GreaterEqual => Some(BinaryOp::GreaterEqual),
-            Less => Some(BinaryOp::LessThan),
-            LessEqual => Some(BinaryOp::LessEqual),
+            Greater => Some(ComparationOp::GreaterThan),
+            GreaterEqual => Some(ComparationOp::GreaterEqual),
+            Less => Some(ComparationOp::LessThan),
+            LessEqual => Some(ComparationOp::LessEqual),
             _ => None,
         }) {
             let right = self.addition()?;
-            expr = Expr::Binary(expr.into(), op_and_token, right.into());
+            expr = Expr::Comparation(expr.into(), op_and_token, right.into());
         }
         Ok(expr)
     }
@@ -107,12 +131,12 @@ impl<'a> Parser<'a> {
     fn addition(&mut self) -> Result<Expr, ParserError> {
         let mut expr = self.multiplication()?;
         while let Some(op_and_token) = self.next_is(|tt| match tt {
-            Minus => Some(BinaryOp::Sub),
-            Plus => Some(BinaryOp::Add),
+            Minus => Some(ArithmeticOp::Sub),
+            Plus => Some(ArithmeticOp::Add),
             _ => None,
         }) {
             let right = self.multiplication()?;
-            expr = Expr::Binary(expr.into(), op_and_token, right.into());
+            expr = Expr::Arithmetic(expr.into(), op_and_token, right.into());
         }
         Ok(expr)
     }
@@ -120,13 +144,13 @@ impl<'a> Parser<'a> {
     fn multiplication(&mut self) -> Result<Expr, ParserError> {
         let mut expr = self.unary()?;
         while let Some(op_and_token) = self.next_is(|tt| match tt {
-            Slash => Some(BinaryOp::Div),
-            Star => Some(BinaryOp::Mul),
-            Mod => Some(BinaryOp::Mod),
+            Slash => Some(ArithmeticOp::Div),
+            Star => Some(ArithmeticOp::Mul),
+            Mod => Some(ArithmeticOp::Mod),
             _ => None,
         }) {
             let right = self.unary()?;
-            expr = Expr::Binary(expr.into(), op_and_token, right.into());
+            expr = Expr::Arithmetic(expr.into(), op_and_token, right.into());
         }
         Ok(expr)
     }
