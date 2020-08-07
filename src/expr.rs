@@ -9,23 +9,6 @@ pub enum UnaryOp {
     Bang,
 }
 
-// #[derive(Clone, PartialEq, Debug)]
-// pub enum BinaryOp {
-//     Equal,
-//     TypedEqual,
-//     NotEqual,
-//     TypedNotEqual,
-//     LessThan,
-//     LessEqual,
-//     GreaterThan,
-//     GreaterEqual,
-//     Add,
-//     Sub,
-//     Mul,
-//     Div,
-//     Mod,
-// }
-
 #[derive(Clone, PartialEq, Debug)]
 pub enum ArithmeticOp {
     Add,
