@@ -1,6 +1,7 @@
 use mint::create_lines_vec;
 use mint::error::Error;
 use mint::parser::Parser;
+use mint::semantic_analyzer::SemanticAnalyzer;
 use std::env::args;
 use std::fs::read_to_string;
 use std::process::exit;
@@ -29,10 +30,14 @@ fn main() {
             let tokens = scan.scan_tokens();
             match tokens {
                 Ok(vec) => {
-                    // println!("{:?}", vec);
                     let mut parser = Parser::new(vec);
                     match parser.parse() {
-                        Ok(stmts) => println!("{:?}", stmts),
+                        Ok(stmts) => {
+                            let mut semantic_analyzer = SemanticAnalyzer::default();
+                            if let Err(_error) = semantic_analyzer.analyze(&stmts) {
+                                println!("Deu erro :/");
+                            }
+                        }
                         Err(errors) => {
                             for error in errors {
                                 error.show_error(Some(path), Some(&lines_vec))

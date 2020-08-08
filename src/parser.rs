@@ -104,7 +104,9 @@ impl<'a> Parser<'a> {
         let mut expr = self.comparison()?;
         while let Some(op_and_token) = self.next_is(|tt| match tt {
             EqualEqual => Some(ComparationOp::Equal),
-            EqualEqualEqual => Some(ComparationOp::TypedEqual),
+            EqualEqualEqual => Some(ComparationOp::StrictEqual),
+            BangEqual => Some(ComparationOp::NotEqual),
+            BangEqualEqual => Some(ComparationOp::StrictNotEqual),
             _ => None,
         }) {
             let right = self.comparison()?;

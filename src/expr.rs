@@ -1,4 +1,6 @@
 use crate::token::Token;
+use std::hash::{Hash, Hasher};
+use std::ptr::hash;
 
 type OpWithToken<Op> = (Op, Token);
 
@@ -21,9 +23,9 @@ pub enum ArithmeticOp {
 #[derive(Clone, PartialEq, Debug)]
 pub enum ComparationOp {
     Equal,
-    TypedEqual,
+    StrictEqual,
     NotEqual,
-    TypedNotEqual,
+    StrictNotEqual,
     LessThan,
     LessEqual,
     GreaterThan,
@@ -52,3 +54,14 @@ pub enum Expr {
     Grouping(Box<Expr>),
     Literal(OpWithToken<Value>),
 }
+
+impl Hash for &Expr {
+    fn hash<H>(&self, hasher: &mut H)
+    where
+        H: Hasher,
+    {
+        hash(self, hasher)
+    }
+}
+
+impl Eq for &Expr {}
