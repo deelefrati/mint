@@ -14,7 +14,7 @@ pub fn create_lines_vec(source_code: &str) -> Vec<String> {
             }
         }
         if line != "" {
-            vec_lines.push(line.clone());
+            vec_lines.push(line);
         }
         vec_lines
     } else {

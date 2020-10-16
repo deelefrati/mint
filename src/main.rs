@@ -13,14 +13,12 @@ fn main() {
         let error = Error::Input(String::from("Too many arguments."));
         error.show_error(None, None);
         exit(1);
+    } else if let Some(path) = arguments.nth(1) {
+        run_file(&path)
     } else {
-        if let Some(path) = arguments.nth(1) {
-            run_file(&path)
-        } else {
-            let error = Error::Input(String::from("Too few  arguments were passed."));
-            error.show_error(None, None);
-            exit(1);
-        }
+        let error = Error::Input(String::from("Too few  arguments were passed."));
+        error.show_error(None, None);
+        exit(1);
     }
 
     fn run_file(path: &str) {
