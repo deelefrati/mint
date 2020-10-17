@@ -16,7 +16,11 @@ pub enum ScannerError {
 #[derive(Debug, PartialEq, Clone)]
 pub enum ParserError {
     Missing(usize, String),
-    MissingExpression(usize)
+    MissingExpression(usize),
+    AssignmentExpected(),
+    TypeNotDefined(),
+    ColonExpected(),
+    SemicolonExpected(),
 }
 
 #[allow(dead_code)]

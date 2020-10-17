@@ -3,7 +3,7 @@ use crate::{
     expr::*,
     stmt::Stmt,
     token::Token,
-    token_type::TokenType,
+    token_type::{TokenType, VarType},
 };
 use std::vec::Vec;
 
@@ -60,6 +60,62 @@ impl<'a> Parser<'a> {
             None
         }
     }
+
+    fn declaration(&mut self) -> Result<Stmt, ParserError> {
+        if let Some((_, token)) = self.next_is(|tt| match tt {
+            Const => Some(Const),
+            _ => None,
+        }) {
+            self.var_declaration(token)
+        } else {
+            self.statement()
+        }
+    }
+
+    fn var_declaration(&mut self, const_token: Token) -> Result<Stmt, ParserError> {
+        if let Some((token_type, token)) = self.next_is(|tt| match tt {
+            Identifier(variable) => Some(variable),
+            _ => None,
+        }) {
+            if let Some(token) = self.consume(Colon) {
+                if let Some(_) = self.next_is(|tt| match tt {
+                    Num => Some(VarType::Number),
+                    Str => Some(VarType::String),
+                    Bool => Some(VarType::Boolean),
+                    Null => Some(VarType::Null),
+                    _ => None,
+                }) {
+                    if let Some(token) = self.consume(Equal) {
+                        let expr = self.expression()?;
+                        if let Some(token) = self.consume(Semicolon) {
+                            Ok(Stmt::VarStmt(*token_type, expr))
+                        } else {
+                            // todo error
+                        }
+                    } else {
+                        //todo error
+                    }
+                } else {
+                    // todo error
+                }
+            } else {
+                if let Some(_) = self.next_is(|tt| match tt {
+                    Equal => Some(Equal),
+                    Semicolon => Some(Semicolon),
+                    _ => None,
+                }) {
+                    // todo error
+                } else {
+                    // todo error
+                }
+                // todo error
+            }
+        } else {
+            // todo error
+        }
+    }
+
+    // const x  = 1;
 
     fn statement(&mut self) -> Result<Stmt, ParserError> {
         self.expression_statement()

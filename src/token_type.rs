@@ -12,6 +12,7 @@ pub enum TokenType {
     Plus,
     Mod,
     Semicolon,
+    Colon, // todo add scanner
     Slash,
     Comment,
     Star,
@@ -37,7 +38,11 @@ pub enum TokenType {
     String(std::string::String),
     Number(f64),
 
-    // Keywords.
+    //types todo add scanner
+    Num,
+    Str,
+    Bool,
+
     Class,
     Else,
     True,
@@ -51,4 +56,12 @@ pub enum TokenType {
     Const,
 
     Eof,
+}
+
+#[derive(Debug, PartialEq, Clone)]
+pub enum VarType {
+    Number,
+    String,
+    Boolean,
+    Null,
 }

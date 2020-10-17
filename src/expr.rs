@@ -45,6 +45,7 @@ pub enum Value {
     Number(f64),
     Str(String),
 }
+
 #[derive(Clone, PartialEq, Debug)]
 pub enum Expr {
     Arithmetic(Box<Expr>, OpWithToken<ArithmeticOp>, Box<Expr>),
