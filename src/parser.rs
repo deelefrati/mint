@@ -26,9 +26,13 @@ impl<'a> Parser<'a> {
         let mut errors: Vec<Error> = vec![];
 
         while !self.is_at_end() {
-            match self.statement() {
+            match self.declaration() {
                 Ok(statement) => statements.push(statement),
-                Err(error) => errors.push(Error::Parser(error)),
+                Err(error) => {
+                    errors.push(Error::Parser(error));
+                    self.syncronyze();
+                    println!("{:?}", self.peek());
+                }
             }
         }
 
@@ -36,6 +40,26 @@ impl<'a> Parser<'a> {
             Ok(statements)
         } else {
             Err(errors)
+        }
+    }
+
+    fn syncronyze(&mut self) {
+        while let Some(token) = self.peek() {
+            match token.token_type() {
+                Semicolon => {
+                    self.consume(Semicolon);
+                    return;
+                }
+                Type => return,
+                Function => return,
+                Const => return,
+                If => return,
+                Print => return,
+                Return => return,
+                _ => {
+                    self.advance();
+                }
+            }
         }
     }
 
@@ -62,60 +86,65 @@ impl<'a> Parser<'a> {
     }
 
     fn declaration(&mut self) -> Result<Stmt, ParserError> {
-        if let Some((_, token)) = self.next_is(|tt| match tt {
-            Const => Some(Const),
-            _ => None,
-        }) {
-            self.var_declaration(token)
+        if self
+            .next_is(|tt| match tt {
+                Const => Some(Const),
+                _ => None,
+            })
+            .is_some()
+        {
+            self.var_declaration()
         } else {
             self.statement()
         }
     }
 
-    fn var_declaration(&mut self, const_token: Token) -> Result<Stmt, ParserError> {
-        if let Some((token_type, token)) = self.next_is(|tt| match tt {
-            Identifier(variable) => Some(variable),
+    fn var_declaration(&mut self) -> Result<Stmt, ParserError> {
+        if let Some((token_type, _)) = self.next_is(|tt| match tt {
+            Identifier(variable) => Some(variable.clone()),
             _ => None,
         }) {
-            if let Some(token) = self.consume(Colon) {
-                if let Some(_) = self.next_is(|tt| match tt {
+            if self.consume(Colon).is_some() {
+                if let Some((var_type, _)) = self.next_is(|tt| match tt {
                     Num => Some(VarType::Number),
                     Str => Some(VarType::String),
                     Bool => Some(VarType::Boolean),
                     Null => Some(VarType::Null),
                     _ => None,
                 }) {
-                    if let Some(token) = self.consume(Equal) {
+                    if self.consume(Equal).is_some() {
                         let expr = self.expression()?;
-                        if let Some(token) = self.consume(Semicolon) {
-                            Ok(Stmt::VarStmt(*token_type, expr))
+                        if self.consume(Semicolon).is_some() {
+                            Ok(Stmt::VarStmt(token_type, Some(var_type), expr))
                         } else {
-                            // todo error
+                            Err(ParserError::SemicolonExpected(self.current_line))
                         }
                     } else {
-                        //todo error
+                        Err(ParserError::AssignmentExpected(self.current_line))
                     }
                 } else {
-                    // todo error
+                    Err(ParserError::TypeNotDefined(self.current_line))
+                }
+            } else if self
+                .next_is(|tt| match tt {
+                    Equal => Some(Equal),
+                    _ => None,
+                })
+                .is_some()
+            {
+                let expr = self.expression()?;
+                if self.consume(Semicolon).is_some() {
+                    Ok(Stmt::VarStmt(token_type, None, expr))
+                } else {
+                    Err(ParserError::SemicolonExpected(self.current_line))
                 }
             } else {
-                if let Some(_) = self.next_is(|tt| match tt {
-                    Equal => Some(Equal),
-                    Semicolon => Some(Semicolon),
-                    _ => None,
-                }) {
-                    // todo error
-                } else {
-                    // todo error
-                }
-                // todo error
+                Err(ParserError::AssignmentExpected(self.current_line))
             }
         } else {
-            // todo error
+            Err(ParserError::IdentifierExpected(self.current_line))
         }
     }
-
-    // const x  = 1;
 
     fn statement(&mut self) -> Result<Stmt, ParserError> {
         self.expression_statement()

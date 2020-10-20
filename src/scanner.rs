@@ -55,6 +55,8 @@ impl<'a> Scanner<'a> {
                 '+' => Plus,
                 '*' => Star,
                 '%' => Mod,
+                ':' => Colon,
+                ';' => Semicolon,
                 '!' => self.match_char_or_else_or_else('=', BangEqualEqual, BangEqual, Bang),
                 '=' => self.match_char_or_else_or_else('=', EqualEqualEqual, EqualEqual, Equal),
                 '<' => self.match_char_or_else('=', LessEqual, Less),
@@ -268,7 +270,7 @@ impl<'a> Scanner<'a> {
     fn is_keyword(&self, token: &str) -> Option<TokenType> {
         use TokenType::*;
         match token {
-            "class" => Some(Class),
+            "type" => Some(Type),
             "else" => Some(Else),
             "false" => Some(False),
             "function" => Some(Function),
@@ -279,6 +281,9 @@ impl<'a> Scanner<'a> {
             "this" => Some(This),
             "true" => Some(True),
             "const" => Some(Const),
+            "number" => Some(Num),
+            "string" => Some(Str),
+            "boolean" => Some(Bool),
             _ => None,
         }
     }

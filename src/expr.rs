@@ -4,14 +4,34 @@ use std::ptr::hash;
 
 type OpWithToken<Op> = (Op, Token);
 
-#[derive(Clone, PartialEq, Debug)]
+impl std::fmt::Display for UnaryOp {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        match self {
+            UnaryOp::Minus => write!(f, "-"),
+            UnaryOp::Plus => write!(f, "+"),
+            UnaryOp::Bang => write!(f, "!"),
+        }
+    }
+}
+#[derive(Clone, PartialEq, Debug, Copy)]
 pub enum UnaryOp {
     Minus,
     Plus,
     Bang,
 }
 
-#[derive(Clone, PartialEq, Debug)]
+impl std::fmt::Display for ArithmeticOp {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        match self {
+            ArithmeticOp::Add => write!(f, "+"),
+            ArithmeticOp::Sub => write!(f, "-"),
+            ArithmeticOp::Mul => write!(f, "*"),
+            ArithmeticOp::Div => write!(f, "/"),
+            ArithmeticOp::Mod => write!(f, "%"),
+        }
+    }
+}
+#[derive(Clone, PartialEq, Debug, Copy)]
 pub enum ArithmeticOp {
     Add,
     Sub,
@@ -20,7 +40,21 @@ pub enum ArithmeticOp {
     Mod,
 }
 
-#[derive(Clone, PartialEq, Debug)]
+impl std::fmt::Display for ComparationOp {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        match self {
+            ComparationOp::NotEqual => write!(f, "!="),
+            ComparationOp::StrictNotEqual => write!(f, "!=="),
+            ComparationOp::Equal => write!(f, "=="),
+            ComparationOp::StrictEqual => write!(f, "==="),
+            ComparationOp::LessThan => write!(f, "<"),
+            ComparationOp::LessEqual => write!(f, "<="),
+            ComparationOp::GreaterThan => write!(f, ">"),
+            ComparationOp::GreaterEqual => write!(f, ">="),
+        }
+    }
+}
+#[derive(Clone, PartialEq, Debug, Copy)]
 pub enum ComparationOp {
     Equal,
     StrictEqual,
@@ -32,7 +66,15 @@ pub enum ComparationOp {
     GreaterEqual,
 }
 
-#[derive(Clone, PartialEq, Debug)]
+impl std::fmt::Display for LogicalOp {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        match self {
+            LogicalOp::And => write!(f, "&&"),
+            LogicalOp::Or => write!(f, "||"),
+        }
+    }
+}
+#[derive(Clone, PartialEq, Debug, Copy)]
 pub enum LogicalOp {
     And,
     Or,

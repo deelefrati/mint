@@ -1,6 +1,22 @@
-use crate::{expr::*, stmt::Stmt};
+use crate::{
+    error::{Error, SemanticError},
+    expr::*,
+    stmt::Stmt,
+    token_type::VarType,
+};
 use std::collections::HashMap;
-#[derive(Debug)]
+
+impl std::fmt::Display for Type {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        match self {
+            Type::Null => write!(f, "Null"),
+            Type::Num => write!(f, "Number"),
+            Type::Bool => write!(f, "Boolean"),
+            Type::Str => write!(f, "String"),
+        }
+    }
+}
+#[derive(Debug, PartialEq, Clone)]
 pub enum Type {
     Num,
     Bool,
@@ -13,12 +29,23 @@ pub struct SemanticAnalyzer<'a> {
 }
 
 impl<'a> SemanticAnalyzer<'a> {
-    pub fn analyze(&mut self, stmts: &'a [Stmt]) -> Result<(), ()> {
+    pub fn analyze(&mut self, stmts: &'a [Stmt]) -> Result<(), Error> {
         for stmt in stmts {
             match stmt {
                 Stmt::ExprStmt(expr) => match self.analyze_one(&expr) {
                     Ok(t) => self.insert(&expr, t),
-                    Err(()) => return Err(()),
+                    Err(semantic_error) => return Err(Error::Semantic(semantic_error)),
+                },
+                Stmt::VarStmt(_, var_type, expr) => match self.analyze_one(&expr) {
+                    Ok(t) => match (var_type, t) {
+                        (Some(VarType::Boolean), Type::Bool) => {}
+                        (Some(VarType::String), Type::Str) => {}
+                        (Some(VarType::Number), Type::Num) => {}
+                        (Some(VarType::Null), Type::Null) => {}
+                        (None, _) => {}
+                        _ => return Err(Error::Semantic(SemanticError::IncompatibleDeclaration)),
+                    },
+                    Err(semantic_error) => return Err(Error::Semantic(semantic_error)),
                 },
             }
         }
@@ -30,7 +57,7 @@ impl<'a> SemanticAnalyzer<'a> {
         self.types.insert(expr, t);
     }
 
-    fn analyze_one(&self, expr: &Expr) -> Result<Type, ()> {
+    fn analyze_one(&self, expr: &Expr) -> Result<Type, SemanticError> {
         match expr {
             Expr::Arithmetic(a, (op, _), b) => self.analyze_arith(a, op, b),
             Expr::Comparation(a, (op, _), b) => self.analyze_comp(a, op, b),
@@ -41,7 +68,7 @@ impl<'a> SemanticAnalyzer<'a> {
         }
     }
 
-    fn analyze_unary(&self, op: &UnaryOp, exp: &Expr) -> Result<Type, ()> {
+    fn analyze_unary(&self, op: &UnaryOp, exp: &Expr) -> Result<Type, SemanticError> {
         use UnaryOp::*;
         let exp_type = self.analyze_one(exp)?;
 
@@ -49,12 +76,12 @@ impl<'a> SemanticAnalyzer<'a> {
             (Bang, Type::Bool) => Type::Bool,
             (Minus, Type::Num) => Type::Num,
             (Plus, Type::Num) => Type::Num,
-            (_, _) => return Err(()),
+            (op, t) => return Err(SemanticError::IncompatibleUnaryOp(*op, t)),
         };
         Ok(t)
     }
 
-    fn analyze_arith(&self, a: &Expr, op: &ArithmeticOp, b: &Expr) -> Result<Type, ()> {
+    fn analyze_arith(&self, a: &Expr, op: &ArithmeticOp, b: &Expr) -> Result<Type, SemanticError> {
         use ArithmeticOp::*;
 
         let type_a = self.analyze_one(a)?;
@@ -72,13 +99,13 @@ impl<'a> SemanticAnalyzer<'a> {
 
             (Mod, Type::Num, Type::Num) => Type::Num,
 
-            (_, _, _) => return Err(()),
+            (op, left, right) => return Err(SemanticError::IncompatibleArith(*op, left, right)),
         };
 
         Ok(expr_type)
     }
 
-    fn analyze_logical(&self, a: &Expr, op: &LogicalOp, b: &Expr) -> Result<Type, ()> {
+    fn analyze_logical(&self, a: &Expr, op: &LogicalOp, b: &Expr) -> Result<Type, SemanticError> {
         use LogicalOp::*;
 
         let type_a = self.analyze_one(a)?;
@@ -89,13 +116,13 @@ impl<'a> SemanticAnalyzer<'a> {
 
             (Or, Type::Bool, Type::Bool) => Type::Bool,
 
-            (_, _, _) => return Err(()),
+            (op, left, right) => return Err(SemanticError::IncompatibleLogicOp(*op, left, right)),
         };
 
         Ok(expr_type)
     }
 
-    fn analyze_comp(&self, a: &Expr, op: &ComparationOp, b: &Expr) -> Result<Type, ()> {
+    fn analyze_comp(&self, a: &Expr, op: &ComparationOp, b: &Expr) -> Result<Type, SemanticError> {
         use ComparationOp::*;
         let type_a = self.analyze_one(a)?;
         let type_b = self.analyze_one(b)?;
@@ -128,7 +155,11 @@ impl<'a> SemanticAnalyzer<'a> {
             (GreaterEqual, Type::Num, Type::Num) => Type::Bool,
             (GreaterEqual, Type::Str, Type::Str) => Type::Bool,
 
-            (_, _, _) => return Err(()),
+            (op, left, right) => {
+                return Err(SemanticError::IncompatibleComparation(
+                    *op, left, right, None,
+                ))
+            }
         };
         Ok(expr_type)
     }
