@@ -4,7 +4,7 @@
 
 ### Features implemented 
 
-- [x] Literals
+- [x] Primitive types
 - [x] Arithmetic operations 
 - [x] Logical operations
 - [x] Variables
