@@ -33,7 +33,7 @@ fn main() {
                     let mut parser = Parser::new(vec);
                     match parser.parse() {
                         Ok(stmts) => {
-                            println!("{:?}", stmts);
+                            // println!("{:?}", stmts);
                             let mut semantic_analyzer = SemanticAnalyzer::default();
                             if let Err(_error) = semantic_analyzer.analyze(&stmts) {
                                 panic!("Error in the semantic analizer",);

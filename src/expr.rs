@@ -83,7 +83,7 @@ pub enum LogicalOp {
 impl std::fmt::Display for Value {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         match self {
-            Value::Null => write!(f, "Null"),
+            Value::Null => write!(f, "null"),
             Value::Boolean(bool) => write!(f, "{}", bool),
             Value::Number(num) => write!(f, "{}", num),
             Value::Str(string) => write!(f, "{}", string),
