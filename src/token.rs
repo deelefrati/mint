@@ -23,6 +23,14 @@ impl Token {
         &self.token_type
     }
 
+    pub fn starts_at(&self) -> usize {
+        self.starts_at
+    }
+
+    pub fn ends_at(&self) -> usize {
+        self.ends_at
+    }
+
     pub fn line(&self) -> usize {
         self.line
     }

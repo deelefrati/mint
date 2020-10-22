@@ -49,7 +49,6 @@ impl<'a> SemanticAnalyzer<'a> {
                 },
             }
         }
-        println!("{:?}", self.types);
         Ok(())
     }
 

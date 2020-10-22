@@ -1,15 +1,21 @@
 use crate::expr::{ArithmeticOp, ComparationOp, LogicalOp, UnaryOp};
 use crate::semantic_analyzer::Type;
-#[allow(dead_code)]
 #[derive(Debug, PartialEq, Clone)]
 pub enum Error {
     Input(String),
     Scanner(ScannerError),
     Parser(ParserError),
-    Runtime,
-    Unexpected,
     Semantic(SemanticError),
+    Runtime(RuntimeError),
+    Unexpected,
 }
+#[derive(Debug, PartialEq, Clone)]
+pub enum RuntimeError {
+    GenericError,
+    DivisionByZero(usize, usize, usize),
+    AssertionFailed,
+}
+
 #[derive(Debug, PartialEq, Clone)]
 pub enum ScannerError {
     InvalidToken(usize, String, usize, usize),

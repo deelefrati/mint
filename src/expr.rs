@@ -2,7 +2,7 @@ use crate::token::Token;
 use std::hash::{Hash, Hasher};
 use std::ptr::hash;
 
-type OpWithToken<Op> = (Op, Token);
+pub type OpWithToken<Op> = (Op, Token);
 
 impl std::fmt::Display for UnaryOp {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
@@ -80,6 +80,16 @@ pub enum LogicalOp {
     Or,
 }
 
+impl std::fmt::Display for Value {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        match self {
+            Value::Null => write!(f, "Null"),
+            Value::Boolean(bool) => write!(f, "{}", bool),
+            Value::Number(num) => write!(f, "{}", num),
+            Value::Str(string) => write!(f, "{}", string),
+        }
+    }
+}
 #[derive(Clone, PartialEq, Debug)]
 pub enum Value {
     Null,

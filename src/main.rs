@@ -1,6 +1,8 @@
 use mint::create_lines_vec;
 use mint::error::Error;
+use mint::interpreter::Interpreter;
 use mint::parser::Parser;
+use mint::scanner::Scanner;
 use mint::semantic_analyzer::SemanticAnalyzer;
 use std::env::args;
 use std::fs::read_to_string;
@@ -24,7 +26,7 @@ fn main() {
     fn run_file(path: &str) {
         if let Ok(source_code) = read_to_string(path) {
             let lines_vec = create_lines_vec(&source_code);
-            let mut scan = mint::scanner::Scanner::new(&source_code);
+            let mut scan = Scanner::new(&source_code);
             let tokens = scan.scan_tokens();
             match tokens {
                 Ok(vec) => {
@@ -34,8 +36,10 @@ fn main() {
                             println!("{:?}", stmts);
                             let mut semantic_analyzer = SemanticAnalyzer::default();
                             if let Err(_error) = semantic_analyzer.analyze(&stmts) {
-                                println!("Deu erro :/");
+                                panic!("Error in the semantic analizer",);
                             }
+                            let mut interpreter = Interpreter::default();
+                            interpreter.interpret(&stmts);
                         }
                         Err(errors) => {
                             for error in errors {

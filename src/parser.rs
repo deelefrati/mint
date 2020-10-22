@@ -31,7 +31,6 @@ impl<'a> Parser<'a> {
                 Err(error) => {
                     errors.push(Error::Parser(error));
                     self.syncronyze();
-                    println!("{:?}", self.peek());
                 }
             }
         }
