@@ -39,7 +39,7 @@ fn main() {
                                 panic!("Error in the semantic analizer",);
                             }
                             let mut interpreter = Interpreter::default();
-                            interpreter.interpret(&stmts);
+                            interpreter.interpret(stmts);
                         }
                         Err(errors) => {
                             for error in errors {

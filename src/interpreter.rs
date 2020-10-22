@@ -1,4 +1,5 @@
 use crate::{
+    environment::Environment,
     error::{Error, RuntimeError},
     expr::*,
     stmt::*,
@@ -7,7 +8,9 @@ use crate::{
 type InterpreterResult = std::result::Result<Value, RuntimeError>;
 
 #[derive(Default)]
-pub struct Interpreter {}
+pub struct Interpreter {
+    environment: Environment,
+}
 
 impl Interpreter {
     fn binary_arith_op(
@@ -185,7 +188,14 @@ impl Interpreter {
         }
     }
 
-    fn eval(&self, stmt: &Stmt) -> Option<Error> {
+    fn eval_var_stmt(&mut self, identifier: &str, expr: &Expr) -> Result<(), RuntimeError> {
+        let value = self.eval_expr(expr)?;
+
+        self.environment.define(identifier.to_string(), value);
+        Ok(())
+    }
+
+    fn eval(&mut self, stmt: &Stmt) -> Option<Error> {
         use Stmt::*;
         match stmt {
             ExprStmt(expr) => match self.eval_expr(expr) {
@@ -195,19 +205,21 @@ impl Interpreter {
                 }
                 Err(error) => Some(Error::Runtime(error)),
             },
-            c => {
-                println!("{:?}", c);
-                None
-            }
+            VarStmt(identifier, _, expr) => match self.eval_var_stmt(identifier, expr) {
+                Ok(()) => None,
+                Err(error) => Some(Error::Runtime(error)),
+            },
         }
     }
 
-    pub fn interpret(&mut self, stmts: &[Stmt]) -> Option<Error> {
+    pub fn interpret(&mut self, stmts: Vec<Stmt>) -> Option<Error> {
+        self.environment = Environment::default();
         for stmt in stmts {
-            if let Some(evaluation) = self.eval(stmt) {
+            if let Some(evaluation) = self.eval(&stmt) {
                 return Some(evaluation);
             }
         }
+        println!("{:?}", self.environment);
         None
     }
 }
