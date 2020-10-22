@@ -90,17 +90,22 @@ impl Interpreter {
         let eval_right = self.eval_expr(right)?;
 
         let (op, _) = op_and_token;
+        let error_margin = f64::EPSILON; // Use an epsilon for comparison
 
         // TODO ver se realmente vai utilizar o Equal
         let result = match (op, eval_left, eval_right) {
-            (ComparationOp::StrictEqual, Number(a), Number(b)) => Boolean(a == b),
+            (ComparationOp::StrictEqual, Number(a), Number(b)) => {
+                Boolean((a - b).abs() < error_margin) // a == b to make clippy happy
+            }
             (ComparationOp::StrictEqual, Boolean(a), Boolean(b)) => Boolean(a == b),
             (ComparationOp::StrictEqual, Str(a), Str(b)) => Boolean(a == b),
             (ComparationOp::StrictEqual, Null, Null) => Boolean(true),
             (ComparationOp::StrictEqual, _, Null) => Boolean(false),
             (ComparationOp::StrictEqual, Null, _) => Boolean(false),
 
-            (ComparationOp::StrictNotEqual, Number(a), Number(b)) => Boolean(a != b),
+            (ComparationOp::StrictNotEqual, Number(a), Number(b)) => {
+                Boolean((a - b).abs() > error_margin) // a != b to make clippy happy
+            }
             (ComparationOp::StrictNotEqual, Boolean(a), Boolean(b)) => Boolean(a != b),
             (ComparationOp::StrictNotEqual, Str(a), Str(b)) => Boolean(a != b),
             (ComparationOp::StrictNotEqual, Null, Null) => Boolean(false),
