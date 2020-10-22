@@ -23,8 +23,8 @@ impl Interpreter {
 
         // FIXME panic will never happen
         match (op, left, right) {
-            (Sub, Number(a), Number(b)) => Ok(Number(a.clone() - b.clone())),
-            (Add, Number(a), Number(b)) => Ok(Number(a.clone() + b.clone())),
+            (Sub, Number(a), Number(b)) => Ok(Number(*a - *b)),
+            (Add, Number(a), Number(b)) => Ok(Number(*a + *b)),
             (Div, Number(a), Number(b)) => {
                 if *b != 0.0 {
                     Ok(Value::Number(a / b))
@@ -36,8 +36,8 @@ impl Interpreter {
                     ))
                 }
             }
-            (Mul, Number(a), Number(b)) => Ok(Number(a * b)),
-            (Mod, Number(a), Number(b)) => Ok(Number(a.clone() % b.clone())),
+            (Mul, Number(a), Number(b)) => Ok(Number(*a * *b)),
+            (Mod, Number(a), Number(b)) => Ok(Number(*a % *b)),
             _ => panic!("interpreter::binary_arith_op failed unexpectedly"),
         }
     }
@@ -62,9 +62,9 @@ impl Interpreter {
 
         // FIXME panic will never happen
         match (op, right) {
-            (Minus, Number(a)) => Ok(Number(-a.clone())),
-            (Plus, Number(a)) => Ok(Number(a.clone())),
-            (Bang, Value::Boolean(a)) => Ok(Boolean(a.clone())),
+            (Minus, Number(a)) => Ok(Number(-*a)),
+            (Plus, Number(a)) => Ok(Number(*a)),
+            (Bang, Value::Boolean(a)) => Ok(Boolean(!*a)),
             _ => panic!("interpreter::unary_op failed unexpectedly"),
         }
     }
