@@ -43,6 +43,7 @@ pub enum SemanticError {
     IncompatibleUnaryOp(UnaryOp, Type),
     IncompatibleDeclaration,
     VariableNotDeclared,
+    VariableOverwrited,
 }
 
 #[allow(dead_code)]
@@ -298,7 +299,8 @@ impl Error {
             }
             SemanticError::IncompatibleLogicOp(op, l, r) => format!("{}The {}'{}'{} operator expects the left and right expressions to be both of type {}{}{} or {}{}{}, but the expressions evaluates to {}{}{} and {}{}{} respectively.", Color::White, Color::Yellow, op, Color::White, Color::Yellow, Type::Bool, Color::White, Color::Yellow, Type::Null, Color::White, Color::Yellow, l, Color::White, Color::Yellow, r, Color::White),
             SemanticError::IncompatibleDeclaration => "The type is not compatible with de assignment".to_string(),
-            SemanticError::VariableNotDeclared => "Variable not declared".to_string() // TODO melhorar msg erro
+            SemanticError::VariableNotDeclared => "Variable not declared".to_string(), // TODO melhorar msg erro
+            SemanticError::VariableOverwrited => "Variable overwrited".to_string() // TODO melhorar msg erro
         }
     }
 

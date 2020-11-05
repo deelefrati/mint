@@ -35,8 +35,10 @@ fn main() {
                         Ok(stmts) => {
                             // println!("{:?}", stmts);
                             let mut semantic_analyzer = SemanticAnalyzer::default();
-                            if let Err(_error) = semantic_analyzer.analyze(&stmts) {
-                                panic!("Error in the semantic analizer",);
+                            if let Err(errors) = semantic_analyzer.analyze(&stmts) {
+                                for error in errors {
+                                    error.show_error(Some(path), Some(&lines_vec))
+                                }
                             }
                             let mut interpreter = Interpreter::default();
                             interpreter.interpret(&stmts);

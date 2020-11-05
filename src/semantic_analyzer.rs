@@ -30,37 +30,65 @@ pub struct SemanticAnalyzer<'a> {
 }
 
 impl<'a> SemanticAnalyzer<'a> {
-    pub fn analyze(&mut self, stmts: &'a [Stmt]) -> Result<(), Error> {
+    pub fn analyze(&mut self, stmts: &'a [Stmt]) -> Result<(), Vec<Error>> {
+        let mut errors: Vec<Error> = vec![];
         for stmt in stmts {
             match stmt {
                 Stmt::ExprStmt(expr) => match self.analyze_one(&expr) {
                     Ok(t) => self.insert(&expr, t),
-                    Err(semantic_error) => return Err(Error::Semantic(semantic_error)),
+                    Err(semantic_error) => errors.push(Error::Semantic(semantic_error)),
                 },
                 Stmt::VarStmt(var_name, var_type, expr) => match self.analyze_one(&expr) {
                     Ok(t) => match (var_type, t) {
                         (Some(VarType::Boolean), Type::Bool) => {
-                            self.insert_var(var_name, Type::Bool)
+                            if let Err(error) = self.insert_var(var_name, Type::Bool) {
+                                errors.push(error);
+                            }
                         }
-                        (Some(VarType::String), Type::Str) => self.insert_var(var_name, Type::Str),
-                        (Some(VarType::Number), Type::Num) => self.insert_var(var_name, Type::Num),
-                        (Some(VarType::Null), Type::Null) => self.insert_var(var_name, Type::Null),
-                        (None, _) => self.insert_var(var_name, t),
-                        _ => return Err(Error::Semantic(SemanticError::IncompatibleDeclaration)),
+                        (Some(VarType::String), Type::Str) => {
+                            if let Err(error) = self.insert_var(var_name, Type::Str) {
+                                errors.push(error);
+                            }
+                        }
+                        (Some(VarType::Number), Type::Num) => {
+                            if let Err(error) = self.insert_var(var_name, Type::Num) {
+                                errors.push(error);
+                            }
+                        }
+                        (Some(VarType::Null), Type::Null) => {
+                            if let Err(error) = self.insert_var(var_name, Type::Null) {
+                                errors.push(error);
+                            }
+                        }
+                        (None, _) => {
+                            if let Err(error) = self.insert_var(var_name, t) {
+                                errors.push(error);
+                            }
+                        }
+                        _ => errors.push(Error::Semantic(SemanticError::IncompatibleDeclaration)),
                     },
-                    Err(semantic_error) => return Err(Error::Semantic(semantic_error)),
+                    Err(semantic_error) => errors.push(Error::Semantic(semantic_error)),
                 },
             }
         }
-        Ok(())
+        if errors.is_empty() {
+            Ok(())
+        } else {
+            Err(errors)
+        }
     }
 
     fn insert(&mut self, expr: &'a Expr, t: Type) {
         self.types.insert(expr, t);
     }
 
-    fn insert_var(&mut self, identifier: &'a str, t: Type) {
-        self.symbol_table.insert(identifier, t);
+    fn insert_var(&mut self, identifier: &'a str, t: Type) -> Result<(), Error> {
+        if !self.symbol_table.contains_key(identifier) {
+            self.symbol_table.insert(identifier, t);
+            Ok(())
+        } else {
+            Err(Error::Semantic(SemanticError::VariableOverwrited))
+        }
     }
 
     fn get_var(&mut self, identifier: &str) -> Option<&Type> {

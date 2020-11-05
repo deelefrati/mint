@@ -32,6 +32,7 @@ impl Interpreter {
                 if *b != 0.0 {
                     Ok(Value::Number(a / b))
                 } else {
+                    println!("AAA");
                     Err(RuntimeError::DivisionByZero(
                         token.line(),
                         token.starts_at(),
