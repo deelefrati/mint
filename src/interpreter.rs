@@ -156,17 +156,9 @@ impl Interpreter {
 
         let (op, _) = op_and_token;
 
-        // This is painfull to see, but it's how TS works
         let result = match (op, eval_left, eval_right) {
             (LogicalOp::And, Boolean(a), Boolean(b)) => Boolean(a && b),
-            (LogicalOp::And, Boolean(true), Null) => Null,
-            (LogicalOp::And, Boolean(false), Null) => Boolean(false),
-            (LogicalOp::And, Null, Boolean(_)) => Null,
-
             (LogicalOp::Or, Boolean(a), Boolean(b)) => Boolean(a || b),
-            (LogicalOp::Or, Boolean(true), Null) => Boolean(true),
-            (LogicalOp::Or, Boolean(false), Null) => Null,
-            (LogicalOp::Or, Null, Boolean(a)) => Boolean(a),
             _ => panic!("LogicalOp error"),
         };
         Ok(result)

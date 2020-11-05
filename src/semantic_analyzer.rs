@@ -110,15 +110,9 @@ impl<'a> SemanticAnalyzer<'a> {
         let type_a = self.analyze_one(a)?;
         let type_b = self.analyze_one(b)?;
 
-        // FIXME ver os retornos
         let expr_type = match (op, type_a, type_b) {
             (And, Type::Bool, Type::Bool) => Type::Bool,
-            (And, Type::Bool, Type::Null) => Type::Bool,
-            (And, Type::Null, Type::Bool) => Type::Bool,
-
             (Or, Type::Bool, Type::Bool) => Type::Bool,
-            (Or, Type::Null, Type::Bool) => Type::Bool,
-            (Or, Type::Bool, Type::Null) => Type::Bool,
 
             (op, left, right) => return Err(SemanticError::IncompatibleLogicOp(*op, left, right)),
         };
