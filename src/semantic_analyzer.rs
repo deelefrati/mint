@@ -16,7 +16,7 @@ impl std::fmt::Display for Type {
         }
     }
 }
-#[derive(Debug, PartialEq, Clone)]
+#[derive(Debug, PartialEq, Clone, Copy)]
 pub enum Type {
     Num,
     Bool,
@@ -26,6 +26,7 @@ pub enum Type {
 #[derive(Default)]
 pub struct SemanticAnalyzer<'a> {
     types: HashMap<&'a Expr, Type>,
+    symbol_table: HashMap<&'a str, Type>,
 }
 
 impl<'a> SemanticAnalyzer<'a> {
@@ -36,13 +37,15 @@ impl<'a> SemanticAnalyzer<'a> {
                     Ok(t) => self.insert(&expr, t),
                     Err(semantic_error) => return Err(Error::Semantic(semantic_error)),
                 },
-                Stmt::VarStmt(_, var_type, expr) => match self.analyze_one(&expr) {
+                Stmt::VarStmt(var_name, var_type, expr) => match self.analyze_one(&expr) {
                     Ok(t) => match (var_type, t) {
-                        (Some(VarType::Boolean), Type::Bool) => {}
-                        (Some(VarType::String), Type::Str) => {}
-                        (Some(VarType::Number), Type::Num) => {}
-                        (Some(VarType::Null), Type::Null) => {}
-                        (None, _) => {}
+                        (Some(VarType::Boolean), Type::Bool) => {
+                            self.insert_var(var_name, Type::Bool)
+                        }
+                        (Some(VarType::String), Type::Str) => self.insert_var(var_name, Type::Str),
+                        (Some(VarType::Number), Type::Num) => self.insert_var(var_name, Type::Num),
+                        (Some(VarType::Null), Type::Null) => self.insert_var(var_name, Type::Null),
+                        (None, _) => self.insert_var(var_name, t),
                         _ => return Err(Error::Semantic(SemanticError::IncompatibleDeclaration)),
                     },
                     Err(semantic_error) => return Err(Error::Semantic(semantic_error)),
@@ -56,7 +59,15 @@ impl<'a> SemanticAnalyzer<'a> {
         self.types.insert(expr, t);
     }
 
-    fn analyze_one(&self, expr: &Expr) -> Result<Type, SemanticError> {
+    fn insert_var(&mut self, identifier: &'a str, t: Type) {
+        self.symbol_table.insert(identifier, t);
+    }
+
+    fn get_var(&mut self, identifier: &str) -> Option<&Type> {
+        self.symbol_table.get(identifier)
+    }
+
+    fn analyze_one(&mut self, expr: &Expr) -> Result<Type, SemanticError> {
         match expr {
             Expr::Arithmetic(a, (op, _), b) => self.analyze_arith(a, op, b),
             Expr::Comparation(a, (op, _), b) => self.analyze_comp(a, op, b),
@@ -64,10 +75,19 @@ impl<'a> SemanticAnalyzer<'a> {
             Expr::Unary((op, _), a) => self.analyze_unary(op, a),
             Expr::Grouping(expr) => self.analyze_one(expr),
             Expr::Literal((value, _)) => Ok(self.analyze_literal(value)),
+            Expr::Variable(_, identifier) => self.analyze_var_expr(identifier),
         }
     }
 
-    fn analyze_unary(&self, op: &UnaryOp, exp: &Expr) -> Result<Type, SemanticError> {
+    fn analyze_var_expr(&mut self, identifier: &str) -> Result<Type, SemanticError> {
+        if let Some(t) = self.get_var(identifier) {
+            Ok(*t)
+        } else {
+            Err(SemanticError::VariableNotDeclared)
+        }
+    }
+
+    fn analyze_unary(&mut self, op: &UnaryOp, exp: &Expr) -> Result<Type, SemanticError> {
         use UnaryOp::*;
         let exp_type = self.analyze_one(exp)?;
 
@@ -80,7 +100,12 @@ impl<'a> SemanticAnalyzer<'a> {
         Ok(t)
     }
 
-    fn analyze_arith(&self, a: &Expr, op: &ArithmeticOp, b: &Expr) -> Result<Type, SemanticError> {
+    fn analyze_arith(
+        &mut self,
+        a: &Expr,
+        op: &ArithmeticOp,
+        b: &Expr,
+    ) -> Result<Type, SemanticError> {
         use ArithmeticOp::*;
 
         let type_a = self.analyze_one(a)?;
@@ -104,7 +129,12 @@ impl<'a> SemanticAnalyzer<'a> {
         Ok(expr_type)
     }
 
-    fn analyze_logical(&self, a: &Expr, op: &LogicalOp, b: &Expr) -> Result<Type, SemanticError> {
+    fn analyze_logical(
+        &mut self,
+        a: &Expr,
+        op: &LogicalOp,
+        b: &Expr,
+    ) -> Result<Type, SemanticError> {
         use LogicalOp::*;
 
         let type_a = self.analyze_one(a)?;
@@ -120,7 +150,12 @@ impl<'a> SemanticAnalyzer<'a> {
         Ok(expr_type)
     }
 
-    fn analyze_comp(&self, a: &Expr, op: &ComparationOp, b: &Expr) -> Result<Type, SemanticError> {
+    fn analyze_comp(
+        &mut self,
+        a: &Expr,
+        op: &ComparationOp,
+        b: &Expr,
+    ) -> Result<Type, SemanticError> {
         use ComparationOp::*;
         let type_a = self.analyze_one(a)?;
         let type_b = self.analyze_one(b)?;

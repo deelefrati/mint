@@ -276,6 +276,11 @@ impl<'a> Parser<'a> {
             _ => None,
         }) {
             Ok(Expr::Literal(op_and_token))
+        } else if let Some((var_name, token)) = self.next_is(|tt| match tt {
+            Identifier(name) => Some(name.clone()),
+            _ => None,
+        }) {
+            Ok(Expr::Variable(token, var_name))
         } else {
             Err(ParserError::MissingExpression(self.current_line))
         }

@@ -14,6 +14,7 @@ pub enum RuntimeError {
     GenericError,
     DivisionByZero(usize, usize, usize),
     AssertionFailed,
+    VariableNotDeclared,
 }
 
 #[derive(Debug, PartialEq, Clone)]
@@ -41,6 +42,7 @@ pub enum SemanticError {
     IncompatibleLogicOp(LogicalOp, Type, Type),
     IncompatibleUnaryOp(UnaryOp, Type),
     IncompatibleDeclaration,
+    VariableNotDeclared,
 }
 
 #[allow(dead_code)]
@@ -295,7 +297,8 @@ impl Error {
                 }
             }
             SemanticError::IncompatibleLogicOp(op, l, r) => format!("{}The {}'{}'{} operator expects the left and right expressions to be both of type {}{}{} or {}{}{}, but the expressions evaluates to {}{}{} and {}{}{} respectively.", Color::White, Color::Yellow, op, Color::White, Color::Yellow, Type::Bool, Color::White, Color::Yellow, Type::Null, Color::White, Color::Yellow, l, Color::White, Color::Yellow, r, Color::White),
-            SemanticError::IncompatibleDeclaration => "The type is not compatible with de assignment".to_string()
+            SemanticError::IncompatibleDeclaration => "The type is not compatible with de assignment".to_string(),
+            SemanticError::VariableNotDeclared => "Variable not declared".to_string() // TODO melhorar msg erro
         }
     }
 

@@ -164,6 +164,14 @@ impl Interpreter {
         Ok(result)
     }
 
+    fn eval_var_expr(&self, identifier: &str) -> InterpreterResult {
+        if let Some(value) = self.environment.get(identifier) {
+            Ok(value.clone())
+        } else {
+            Err(RuntimeError::VariableNotDeclared)
+        }
+    }
+
     fn eval_expr(&self, expr: &Expr) -> InterpreterResult {
         use Expr::*;
         match expr {
@@ -176,6 +184,7 @@ impl Interpreter {
             Logical(left, op_and_token, right) => self.eval_logical_expr(left, op_and_token, right),
             Unary(op_and_token, right) => self.eval_unary_expr(op_and_token, right),
             Grouping(new_expr) => self.eval_expr(new_expr),
+            Variable(_, identifier) => self.eval_var_expr(identifier),
             Literal(value_and_token) => Ok(value_and_token.clone().0),
         }
     }
