@@ -212,14 +212,14 @@ impl Interpreter {
         }
     }
 
-    pub fn interpret(&mut self, stmts: Vec<Stmt>) -> Option<Error> {
+    pub fn interpret(&mut self, stmts: &[Stmt]) -> Option<Error> {
         self.environment = Environment::default();
         for stmt in stmts {
-            if let Some(evaluation) = self.eval(&stmt) {
+            if let Some(evaluation) = self.eval(stmt) {
                 return Some(evaluation);
             }
         }
-        println!("{:?}", self.environment);
+        // println!("{:?}", self.environment);
         None
     }
 }
