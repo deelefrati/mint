@@ -1,5 +1,8 @@
-use crate::expr::{ArithmeticOp, ComparationOp, LogicalOp, UnaryOp};
 use crate::semantic_analyzer::Type;
+use crate::{
+    expr::{ArithmeticOp, ComparationOp, LogicalOp, UnaryOp},
+    token_type::TokenType,
+};
 #[derive(Debug, PartialEq, Clone)]
 pub enum Error {
     Input(String),
@@ -33,6 +36,7 @@ pub enum ParserError {
     ColonExpected(usize),
     SemicolonExpected(usize),
     IdentifierExpected(usize),
+    Expected(usize, TokenType),
 }
 #[derive(Debug, PartialEq, Clone)]
 pub enum SemanticError {
@@ -240,6 +244,61 @@ impl Error {
                 "Name of the variable must be provided after the \"const\" keyword.",
                 Color::Reset,
             ),
+            Expected(line, tt) => match tt {
+                TokenType::Equal => format!(
+                    "{}Syntax error in line {}: \n{}\n{} '{}'\n{}\n{} {}{}{}",
+                    Color::White,
+                    line,
+                    self.blue_pipe(),
+                    self.blue_pipe(),
+                    source_vec.get(*line - 1).unwrap(),
+                    self.blue_pipe(),
+                    self.blue_pipe(),
+                    Color::Yellow,
+                    "Expected \"=\"",
+                    Color::Reset,
+                ),
+                TokenType::RightParen => format!(
+                    "{}Syntax error in line {}: \n{}\n{} '{}'\n{}\n{} {}{}{}",
+                    Color::White,
+                    line,
+                    self.blue_pipe(),
+                    self.blue_pipe(),
+                    source_vec.get(*line - 1).unwrap(),
+                    self.blue_pipe(),
+                    self.blue_pipe(),
+                    Color::Yellow,
+                    "Expected a ')' after this expression".to_string(),
+                    Color::Reset,
+                ),
+                TokenType::Semicolon => format!(
+                    "{}Syntax error in line {}: \n{}\n{} '{}'\n{}\n{} {}{}{}",
+                    Color::White,
+                    line,
+                    self.blue_pipe(),
+                    self.blue_pipe(),
+                    source_vec.get(*line - 1).unwrap(),
+                    self.blue_pipe(),
+                    self.blue_pipe(),
+                    Color::Yellow,
+                    "Expected \";\"",
+                    Color::Reset,
+                ),
+                TokenType::Colon => format!(
+                    "{}Syntax error in line {}: \n{}\n{} '{}'\n{}\n{} {}{}{}",
+                    Color::White,
+                    line,
+                    self.blue_pipe(),
+                    self.blue_pipe(),
+                    source_vec.get(*line - 1).unwrap(),
+                    self.blue_pipe(),
+                    self.blue_pipe(),
+                    Color::Yellow,
+                    "Expected \":\"",
+                    Color::Reset,
+                ),
+                _ => "Não implementado".to_string(),
+            },
         }
     }
 

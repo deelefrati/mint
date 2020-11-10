@@ -46,8 +46,11 @@ impl<'a> Parser<'a> {
         while let Some(token) = self.peek() {
             match token.token_type() {
                 Semicolon => {
-                    self.consume(Semicolon);
-                    return;
+                    if self.consume(Semicolon).is_err() {
+                        panic!("Error at sincrozine"); // FIXME retirar esse panic
+                    } else {
+                        return;
+                    }
                 }
                 Type => return,
                 Function => return,
@@ -85,13 +88,7 @@ impl<'a> Parser<'a> {
     }
 
     fn declaration(&mut self) -> Result<Stmt, ParserError> {
-        if self
-            .next_is(|tt| match tt {
-                Const => Some(Const),
-                _ => None,
-            })
-            .is_some()
-        {
+        if self.next_is(single(Const)).is_some() {
             self.var_declaration()
         } else {
             self.statement()
@@ -103,7 +100,7 @@ impl<'a> Parser<'a> {
             Identifier(variable) => Some(variable.clone()),
             _ => None,
         }) {
-            if self.consume(Colon).is_some() {
+            if self.consume(Colon).is_ok() {
                 if let Some((var_type, _)) = self.next_is(|tt| match tt {
                     Num => Some(VarType::Number),
                     Str => Some(VarType::String),
@@ -111,32 +108,17 @@ impl<'a> Parser<'a> {
                     Null => Some(VarType::Null),
                     _ => None,
                 }) {
-                    if self.consume(Equal).is_some() {
-                        let expr = self.expression()?;
-                        if self.consume(Semicolon).is_some() {
-                            Ok(Stmt::VarStmt(token_type, Some(var_type), expr))
-                        } else {
-                            Err(ParserError::SemicolonExpected(self.current_line))
-                        }
-                    } else {
-                        Err(ParserError::AssignmentExpected(self.current_line))
-                    }
+                    self.consume(Equal)?;
+                    let expr = self.expression()?;
+                    self.consume(Semicolon)?;
+                    Ok(Stmt::VarStmt(token_type, Some(var_type), expr))
                 } else {
                     Err(ParserError::TypeNotDefined(self.current_line))
                 }
-            } else if self
-                .next_is(|tt| match tt {
-                    Equal => Some(Equal),
-                    _ => None,
-                })
-                .is_some()
-            {
+            } else if self.next_is(single(Equal)).is_some() {
                 let expr = self.expression()?;
-                if self.consume(Semicolon).is_some() {
-                    Ok(Stmt::VarStmt(token_type, None, expr))
-                } else {
-                    Err(ParserError::SemicolonExpected(self.current_line))
-                }
+                self.consume(Semicolon)?;
+                Ok(Stmt::VarStmt(token_type, None, expr))
             } else {
                 Err(ParserError::AssignmentExpected(self.current_line))
             }
@@ -255,18 +237,10 @@ impl<'a> Parser<'a> {
     }
 
     fn primary(&mut self) -> Result<Expr, ParserError> {
-        if let Some((_, token)) = self.next_is(|tt| match tt {
-            LeftParen => Some(LeftParen),
-            _ => None,
-        }) {
+        if self.next_is(single(LeftParen)).is_some() {
             let expr = self.expression()?;
-            match self.consume(RightParen) {
-                Some(_) => Ok(Expr::Grouping(expr.into())),
-                None => Err(ParserError::Missing(
-                    token.line(),
-                    "Expected a ')' after this expression".to_string(),
-                )),
-            }
+            self.consume(RightParen)?;
+            Ok(Expr::Grouping(expr.into()))
         } else if let Some(op_and_token) = self.next_is(|tt| match tt {
             Number(num) => Some(Value::Number(*num)),
             String(str) => Some(Value::Str(str.to_string())),
@@ -304,9 +278,23 @@ impl<'a> Parser<'a> {
         }
     }
 
-    fn consume(&mut self, tt: TokenType) -> Option<&Token> {
-        if self.check_type(tt) {
-            self.advance()
+    fn consume(&mut self, tt: TokenType) -> Result<&Token, ParserError> {
+        if self.check_type(tt.clone()) {
+            if let Some(token) = self.advance() {
+                Ok(token)
+            } else {
+                Err(ParserError::Expected(0, tt)) // FIXME não consigo passar o current line
+            }
+        } else {
+            Err(ParserError::Expected(self.current_line, tt))
+        }
+    }
+}
+fn single(tt: TokenType) -> impl Fn(&TokenType) -> Option<()> {
+    use std::mem::discriminant;
+    move |other| {
+        if discriminant(&tt) == discriminant(other) {
+            Some(())
         } else {
             None
         }

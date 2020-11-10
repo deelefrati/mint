@@ -35,13 +35,17 @@ fn main() {
                         Ok(stmts) => {
                             // println!("{:?}", stmts);
                             let mut semantic_analyzer = SemanticAnalyzer::default();
-                            if let Err(errors) = semantic_analyzer.analyze(&stmts) {
-                                for error in errors {
-                                    error.show_error(Some(path), Some(&lines_vec))
+                            match semantic_analyzer.analyze(&stmts) {
+                                Ok(_) => {
+                                    let mut interpreter = Interpreter::default();
+                                    interpreter.interpret(&stmts);
+                                }
+                                Err(errors) => {
+                                    for error in errors {
+                                        error.show_error(Some(path), Some(&lines_vec))
+                                    }
                                 }
                             }
-                            let mut interpreter = Interpreter::default();
-                            interpreter.interpret(&stmts);
                         }
                         Err(errors) => {
                             for error in errors {
