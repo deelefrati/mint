@@ -39,6 +39,7 @@ pub enum TokenType {
     Number(f64),
 
     // keywords
+    Assert,
     Num,
     Str,
     Bool,

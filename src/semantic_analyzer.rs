@@ -38,6 +38,13 @@ impl<'a> SemanticAnalyzer<'a> {
                     Ok(t) => self.insert(&expr, t),
                     Err(semantic_error) => errors.push(Error::Semantic(semantic_error)),
                 },
+                Stmt::AssertStmt(expr) => match self.analyze_one(&expr) {
+                    Ok(t) if t != Type::Bool => errors.push(Error::Semantic(
+                        SemanticError::MismatchedTypes(Type::Bool, t, None),
+                    )),
+                    Err(error) => errors.push(Error::Semantic(error)),
+                    _ => {}
+                },
                 Stmt::VarStmt(var_name, var_type, expr) => match self.analyze_one(&expr) {
                     Ok(t) => match (var_type, t) {
                         (Some(VarType::Boolean), Type::Bool) => {

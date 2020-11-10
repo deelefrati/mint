@@ -109,7 +109,7 @@ impl<'a> Scanner<'a> {
                             )));
                         }
                     } else if is_alpha(c) {
-                        self.identifier()
+                        self.identifier_or_keyword()
                     } else {
                         return Err(Error::Scanner(ScannerError::InvalidToken(
                             self.line,
@@ -255,21 +255,18 @@ impl<'a> Scanner<'a> {
         }
     }
 
-    fn identifier(&mut self) -> TokenType {
+    fn identifier_or_keyword(&mut self) -> TokenType {
         self.take_while(is_alphanumeric);
 
-        // Check if the text is a reserved word
         let text = self.consumed();
-        if let Some(tt) = self.is_keyword(&text) {
-            tt
-        } else {
-            TokenType::Identifier(String::from(text))
-        }
+        self.get_keyword(&text)
+            .unwrap_or_else(|| TokenType::Identifier(text.into()))
     }
 
-    fn is_keyword(&self, token: &str) -> Option<TokenType> {
+    fn get_keyword(&self, token: &str) -> Option<TokenType> {
         use TokenType::*;
         match token {
+            "assert" => Some(Assert),
             "type" => Some(Type),
             "else" => Some(Else),
             "false" => Some(False),
