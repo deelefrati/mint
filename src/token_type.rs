@@ -47,6 +47,7 @@ impl std::fmt::Display for TokenType {
             TokenType::This => write!(f, "this"),
             TokenType::Const => write!(f, "const"),
             TokenType::Eof => write!(f, "eof"),
+            TokenType::Assert => write!(f, "assert"),
         }
     }
 }
@@ -90,6 +91,7 @@ pub enum TokenType {
     Number(f64),
 
     // keywords
+    Assert,
     Num,
     Str,
     Bool,

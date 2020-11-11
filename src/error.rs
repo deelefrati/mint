@@ -1,8 +1,10 @@
 use crate::semantic_analyzer::Type;
+
 use crate::{
     expr::{ArithmeticOp, ComparationOp, LogicalOp, UnaryOp},
     token_type::TokenType,
 };
+
 #[derive(Debug, PartialEq, Clone)]
 pub enum Error {
     Input(String),
@@ -12,6 +14,7 @@ pub enum Error {
     Runtime(RuntimeError),
     Unexpected,
 }
+
 #[derive(Debug, PartialEq, Clone)]
 pub enum RuntimeError {
     GenericError,
@@ -30,7 +33,7 @@ pub enum ScannerError {
 
 #[derive(Debug, PartialEq, Clone)]
 pub enum ParserError {
-    Missing(usize, String),
+    Missing(usize, TokenType),
     MissingExpression(usize),
     // declaration of variables errors
     AssignmentExpected(usize),
@@ -40,6 +43,7 @@ pub enum ParserError {
     IdentifierExpected(usize),
     Expected(usize, TokenType),
 }
+
 #[derive(Debug, PartialEq, Clone)]
 pub enum SemanticError {
     MismatchedTypes(Type, Type, Option<String>),
@@ -115,7 +119,7 @@ impl Error {
             Semantic(semantic_error) => {
                 self.format_semantic_error(semantic_error, source_vec.unwrap())
             }
-            _ => unimplemented!("Not implemented yet"),
+            Runtime(_) => "RuntimeError".into(),
         }
     }
 
@@ -189,7 +193,7 @@ impl Error {
         use ParserError::*;
         match error {
             Missing(line, string) => format!(
-                "{}Syntax error in line {}: \n{}\n{} '{}'\n{}\n{} {}{}{}",
+                "{}Syntax error in line {}: \n{}\n{} '{}'\n{}\n{} {}{:?}{}",
                 Color::White,
                 line,
                 self.blue_pipe(),

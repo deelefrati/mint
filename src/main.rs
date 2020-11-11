@@ -33,7 +33,6 @@ fn main() {
                     let mut parser = Parser::new(vec);
                     match parser.parse() {
                         Ok(stmts) => {
-                            // println!("{:?}", stmts);
                             let mut semantic_analyzer = SemanticAnalyzer::default();
                             match semantic_analyzer.analyze(&stmts) {
                                 Ok(_) => {
@@ -44,17 +43,27 @@ fn main() {
                                     for error in errors {
                                         error.show_error(Some(path), Some(&lines_vec))
                                     }
+                                    exit(1);
                                 }
+                            }
+                            let mut interpreter = Interpreter::default();
+                            if let Some(error) = interpreter.interpret(&stmts) {
+                                error.show_error(Some(path), Some(&lines_vec));
+                                exit(1);
                             }
                         }
                         Err(errors) => {
                             for error in errors {
                                 error.show_error(Some(path), Some(&lines_vec))
                             }
+                            exit(1);
                         }
                     }
                 }
-                Err(error) => error.show_error(Some(path), Some(&lines_vec)),
+                Err(error) => {
+                    error.show_error(Some(path), Some(&lines_vec));
+                    exit(1)
+                }
             }
         }
     }

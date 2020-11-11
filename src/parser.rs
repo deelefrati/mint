@@ -125,7 +125,19 @@ impl<'a> Parser<'a> {
     }
 
     fn statement(&mut self) -> Result<Stmt, ParserError> {
-        self.expression_statement()
+        if self.consume(Assert).is_ok() {
+            self.assert()
+        } else {
+            self.expression_statement()
+        }
+    }
+
+    fn assert(&mut self) -> Result<Stmt, ParserError> {
+        self.consume(LeftParen)?;
+        let expr = self.expression()?;
+        self.consume(RightParen)?;
+        self.consume(Semicolon)?;
+        Ok(Stmt::AssertStmt(expr))
     }
 
     fn expression_statement(&mut self) -> Result<Stmt, ParserError> {
@@ -267,25 +279,14 @@ impl<'a> Parser<'a> {
         None
     }
 
-    fn check_type(&self, tt: TokenType) -> bool {
-        if let Some(token) = self.peek() {
-            *token.token_type() == tt
-        } else {
-            false
-        }
-    }
-
-    fn consume(&mut self, tt: TokenType) -> Result<&Token, ParserError> {
-        if self.check_type(tt.clone()) {
-            let line = self.current_line;
-            if let Some(token) = self.advance() {
-                Ok(token)
-            } else {
-                Err(ParserError::Expected(line, tt))
+    fn consume(&mut self, tt: TokenType) -> Result<Token, ParserError> {
+        if let Some(token) = self.peek().cloned() {
+            if *token.token_type() == tt {
+                self.advance();
+                return Ok(token);
             }
-        } else {
-            Err(ParserError::Expected(self.current_line, tt))
         }
+        Err(ParserError::Missing(self.current_line, tt))
     }
 }
 fn single(tt: TokenType) -> impl Fn(&TokenType) -> Option<()> {
