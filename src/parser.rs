@@ -46,11 +46,8 @@ impl<'a> Parser<'a> {
         while let Some(token) = self.peek() {
             match token.token_type() {
                 Semicolon => {
-                    if self.consume(Semicolon).is_err() {
-                        panic!("Error at sincrozine"); // FIXME retirar esse panic
-                    } else {
-                        return;
-                    }
+                    self.advance();
+                    return;
                 }
                 Type => return,
                 Function => return,
@@ -100,7 +97,7 @@ impl<'a> Parser<'a> {
             Identifier(variable) => Some(variable.clone()),
             _ => None,
         }) {
-            if self.consume(Colon).is_ok() {
+            if self.next_is(single(Colon)).is_some() {
                 if let Some((var_type, _)) = self.next_is(|tt| match tt {
                     Num => Some(VarType::Number),
                     Str => Some(VarType::String),
@@ -280,10 +277,11 @@ impl<'a> Parser<'a> {
 
     fn consume(&mut self, tt: TokenType) -> Result<&Token, ParserError> {
         if self.check_type(tt.clone()) {
+            let line = self.current_line;
             if let Some(token) = self.advance() {
                 Ok(token)
             } else {
-                Err(ParserError::Expected(0, tt)) // FIXME não consigo passar o current line
+                Err(ParserError::Expected(line, tt))
             }
         } else {
             Err(ParserError::Expected(self.current_line, tt))

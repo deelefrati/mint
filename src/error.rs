@@ -22,7 +22,9 @@ pub enum RuntimeError {
 
 #[derive(Debug, PartialEq, Clone)]
 pub enum ScannerError {
-    InvalidToken(usize, String, usize, usize),
+    InvalidToken(usize, TokenType, usize, usize),
+    InvalidNumber(usize, TokenType, usize, usize),
+    InvalidString(usize, usize, usize),
     UnterminatedString(usize),
 }
 
@@ -120,7 +122,7 @@ impl Error {
     fn format_scanner_error(&self, error: &ScannerError, source_vec: &[String]) -> String {
         use ScannerError::*;
         match error {
-            InvalidToken(line,note, line_start, line_end) => format!(
+            InvalidToken(line,tt, line_start, line_end) => format!(
                 "{}Syntax error in line {} from column {} to {}: \n{}\n{} '{}'\n{}{}\n{} {}Reason: {}{}",
                 Color::White,
                 line,
@@ -133,7 +135,7 @@ impl Error {
                 self.print_marker(*line_start, *line_end),
                 self.blue_pipe(),
                 Color::Yellow,
-                note,
+                format!("Did you mean {} ?", tt),
                 Color::Reset
             ),
             UnterminatedString(line) => format!(
@@ -146,6 +148,38 @@ impl Error {
                 self.blue_pipe(),
                 self.blue_pipe(),
                 Color::Yellow,
+                Color::Reset
+            ),
+            InvalidNumber(line,number, line_start, line_end) => format!(
+                "{}Syntax error in line {} from column {} to {}: \n{}\n{} '{}'\n{}{}\n{} {}Reason: {}{}",
+                Color::White,
+                line,
+                line_start,
+                line_end,
+                self.blue_pipe(),
+                self.blue_pipe(),
+                source_vec.get(*line -1).unwrap(),
+                self.blue_pipe(),
+                self.print_marker(*line_start, *line_end),
+                self.blue_pipe(),
+                Color::Yellow,
+                format!("Failed parsing number {}", number),
+                Color::Reset
+            ),
+            InvalidString(line, line_start, line_end) => format!(
+                "{}Syntax error in line {} from column {} to {}: \n{}\n{} '{}'\n{}{}\n{} {}Reason: {}{}",
+                Color::White,
+                line,
+                line_start,
+                line_end,
+                self.blue_pipe(),
+                self.blue_pipe(),
+                source_vec.get(*line -1).unwrap(),
+                self.blue_pipe(),
+                self.print_marker(*line_start, *line_end),
+                self.blue_pipe(),
+                Color::Yellow,
+                "Invalid character".to_string(),
                 Color::Reset
             ),
         }

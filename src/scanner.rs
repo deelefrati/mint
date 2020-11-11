@@ -67,7 +67,7 @@ impl<'a> Scanner<'a> {
                     } else {
                         return Err(Error::Scanner(ScannerError::InvalidToken(
                             self.line,
-                            std::string::String::from("Did you mean  \"&&\""), //TODO formartar erro corretamente
+                            TokenType::And, //TODO formartar erro corretamente
                             self.start_token,
                             self.end_token,
                         )));
@@ -80,7 +80,7 @@ impl<'a> Scanner<'a> {
                     } else {
                         return Err(Error::Scanner(ScannerError::InvalidToken(
                             self.line,
-                            std::string::String::from("Did you mean  \"||\""), //TODO formartar erro corretamente
+                            TokenType::Or, //TODO formartar erro corretamente
                             self.start_token,
                             self.end_token,
                         )));
@@ -101,9 +101,9 @@ impl<'a> Scanner<'a> {
                         if let Some(number) = self.number() {
                             number
                         } else {
-                            return Err(Error::Scanner(ScannerError::InvalidToken(
+                            return Err(Error::Scanner(ScannerError::InvalidNumber(
                                 self.line,
-                                format!("Failed parsing number {}", &self.consumed()),
+                                TokenType::String(self.consumed().to_string()),
                                 self.start_token,
                                 self.end_token,
                             )));
@@ -111,9 +111,8 @@ impl<'a> Scanner<'a> {
                     } else if is_alpha(c) {
                         self.identifier()
                     } else {
-                        return Err(Error::Scanner(ScannerError::InvalidToken(
+                        return Err(Error::Scanner(ScannerError::InvalidString(
                             self.line,
-                            "Invalid character".to_string(),
                             self.start_token,
                             self.end_token,
                         )));

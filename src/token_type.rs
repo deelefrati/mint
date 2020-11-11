@@ -1,4 +1,55 @@
-#![allow(dead_code)]
+impl std::fmt::Display for TokenType {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        match self {
+            TokenType::LeftParen => write!(f, "("),
+            TokenType::RightParen => write!(f, ")"),
+            TokenType::LeftBrace => write!(f, "{{"),
+            TokenType::RightBrace => write!(f, "}}"),
+            TokenType::Comma => write!(f, ","),
+            TokenType::Dot => write!(f, "."),
+            TokenType::Minus => write!(f, "-"),
+            TokenType::Plus => write!(f, "+"),
+            TokenType::Mod => write!(f, "%"),
+            TokenType::Semicolon => write!(f, ";"),
+            TokenType::Colon => write!(f, ":"),
+            TokenType::Slash => write!(f, "/"),
+            TokenType::Comment => write!(f, "//"),
+            TokenType::Star => write!(f, "*"),
+            TokenType::Blank => write!(f, "blank"),
+            TokenType::NewLine => write!(f, "new_line"),
+            TokenType::Bang => write!(f, "!"),
+            TokenType::BangEqual => write!(f, "!="),
+            TokenType::BangEqualEqual => write!(f, "!=="),
+            TokenType::Equal => write!(f, "="),
+            TokenType::EqualEqual => write!(f, "=="),
+            TokenType::EqualEqualEqual => write!(f, "==="),
+            TokenType::Greater => write!(f, ">"),
+            TokenType::GreaterEqual => write!(f, ">="),
+            TokenType::Less => write!(f, "<"),
+            TokenType::LessEqual => write!(f, "<="),
+            TokenType::And => write!(f, "&&"),
+            TokenType::Or => write!(f, "||"),
+            TokenType::Identifier(var_name) => write!(f, "{}", var_name),
+            TokenType::String(string) => write!(f, "{}", string),
+            TokenType::Number(num) => write!(f, "{}", num),
+            TokenType::Num => write!(f, "number"),
+            TokenType::Bool => write!(f, "boolean"),
+            TokenType::Str => write!(f, "str"),
+            TokenType::Type => write!(f, "type"),
+            TokenType::Else => write!(f, "else"),
+            TokenType::True => write!(f, "true"),
+            TokenType::False => write!(f, "false"),
+            TokenType::Function => write!(f, "function"),
+            TokenType::If => write!(f, "if"),
+            TokenType::Null => write!(f, "null"),
+            TokenType::Print => write!(f, "console.log"),
+            TokenType::Return => write!(f, "return"),
+            TokenType::This => write!(f, "this"),
+            TokenType::Const => write!(f, "const"),
+            TokenType::Eof => write!(f, "eof"),
+        }
+    }
+}
 #[derive(Debug, PartialEq, Clone)]
 pub enum TokenType {
     // Single-character tokens.
