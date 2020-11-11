@@ -128,7 +128,19 @@ impl<'a> Parser<'a> {
     }
 
     fn statement(&mut self) -> Result<Stmt, ParserError> {
-        self.expression_statement()
+        if self.consume(Assert).is_some() {
+            self.assert()
+        } else {
+            self.expression_statement()
+        }
+    }
+
+    fn assert(&mut self) -> Result<Stmt, ParserError> {
+        self.consume_(LeftParen)?;
+        let expr = self.expression()?;
+        self.consume_(RightParen)?;
+        self.consume_(Semicolon)?;
+        Ok(Stmt::AssertStmt(expr))
     }
 
     fn expression_statement(&mut self) -> Result<Stmt, ParserError> {
@@ -278,23 +290,24 @@ impl<'a> Parser<'a> {
         }
     }
 
-    fn consume(&mut self, tt: TokenType) -> Result<&Token, ParserError> {
-        if self.check_type(tt.clone()) {
-            if let Some(token) = self.advance() {
-                Ok(token)
-            } else {
-                Err(ParserError::Expected(0, tt)) // FIXME não consigo passar o current line
+
+    fn consume(&mut self, tt: TokenType) -> Result<Token, ParserError> {
+        if let Some(token) = self.peek().cloned() {
+            if *token.token_type() == tt {
+                self.advance();
+                return Ok(token);
             }
-        } else {
-            Err(ParserError::Expected(self.current_line, tt))
         }
+        Err(ParserError::Missing(self.current_line, tt))
     }
+    
 }
 fn single(tt: TokenType) -> impl Fn(&TokenType) -> Option<()> {
     use std::mem::discriminant;
     move |other| {
         if discriminant(&tt) == discriminant(other) {
             Some(())
+
         } else {
             None
         }

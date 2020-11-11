@@ -207,6 +207,16 @@ impl Interpreter {
                 }
                 Err(error) => Some(Error::Runtime(error)),
             },
+            AssertStmt(expr) => match self.eval_expr(expr) {
+                Ok(value) => {
+                    if value != Value::Boolean(true) {
+                        Some(Error::Runtime(RuntimeError::AssertionFailed))
+                    } else {
+                        None
+                    }
+                }
+                Err(error) => Some(Error::Runtime(error)),
+            },
             VarStmt(identifier, _, expr) => match self.eval_var_stmt(identifier, expr) {
                 Ok(()) => None,
                 Err(error) => Some(Error::Runtime(error)),
