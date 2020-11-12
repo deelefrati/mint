@@ -5,4 +5,5 @@ pub enum Stmt {
     ExprStmt(Expr),
     AssertStmt(Expr),
     VarStmt(String, Option<VarType>, Expr),
+    Block(Vec<Stmt>),
 }

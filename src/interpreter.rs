@@ -24,7 +24,6 @@ impl Interpreter {
 
         let (op, token) = op_and_token;
 
-        // FIXME panic will never happen
         match (op, left, right) {
             (Sub, Number(a), Number(b)) => Ok(Number(*a - *b)),
             (Add, Number(a), Number(b)) => Ok(Number(*a + *b)),
@@ -42,6 +41,7 @@ impl Interpreter {
             }
             (Mul, Number(a), Number(b)) => Ok(Number(*a * *b)),
             (Mod, Number(a), Number(b)) => Ok(Number(*a % *b)),
+            // FIXME panic will never happen
             _ => panic!("interpreter::binary_arith_op failed unexpectedly"),
         }
     }
@@ -197,6 +197,18 @@ impl Interpreter {
         Ok(())
     }
 
+    fn eval_block(&mut self, stmts: &Vec<Stmt>) -> Result<(), RuntimeError> {
+        let previous = self.environment.clone();
+        self.environment = Environment::new(Some(self.environment.clone()));
+        for stmt in stmts {
+            if let Some(error) = self.eval(stmt) {
+                return Err(RuntimeError::GenericError);
+            }
+        }
+        self.environment = previous;
+        Ok(())
+    }
+
     fn eval(&mut self, stmt: &Stmt) -> Option<Error> {
         use Stmt::*;
         match stmt {
@@ -221,11 +233,15 @@ impl Interpreter {
                 Ok(()) => None,
                 Err(error) => Some(Error::Runtime(error)),
             },
+            Block(stmts) => match self.eval_block(stmts) {
+                Ok(()) => None,
+                Err(error) => Some(Error::Runtime(error)),
+            },
         }
     }
 
     pub fn interpret(&mut self, stmts: &[Stmt]) -> Option<Error> {
-        self.environment = Environment::default();
+        self.environment = Environment::new(None);
         for stmt in stmts {
             if let Some(evaluation) = self.eval(stmt) {
                 return Some(evaluation);

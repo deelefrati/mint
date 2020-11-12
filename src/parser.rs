@@ -127,9 +127,26 @@ impl<'a> Parser<'a> {
     fn statement(&mut self) -> Result<Stmt, ParserError> {
         if self.consume(Assert).is_ok() {
             self.assert()
+        } else if self.consume(LeftBrace).is_ok() {
+            self.block()
         } else {
             self.expression_statement()
         }
+    }
+
+    fn block(&mut self) -> Result<Stmt, ParserError> {
+        Ok(Stmt::Block(self.list_statements()?))
+    }
+
+    fn list_statements(&mut self) -> Result<Vec<Stmt>, ParserError> {
+        let mut stmts = vec![];
+        while !self.is_at_end() {
+            if self.next_is(single(RightBrace)).is_some() {
+                return Ok(stmts);
+            }
+            stmts.push(self.declaration()?);
+        }
+        Err(ParserError::Expected(self.current_line, RightBrace))
     }
 
     fn assert(&mut self) -> Result<Stmt, ParserError> {
