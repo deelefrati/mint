@@ -76,6 +76,7 @@ impl<'a> SemanticAnalyzer<'a> {
                     },
                     Err(semantic_error) => errors.push(Error::Semantic(semantic_error)),
                 },
+                Stmt::Block(_) => {}
             }
         }
         if errors.is_empty() {

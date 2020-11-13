@@ -4,6 +4,7 @@ use crate::{
     expr::*,
     stmt::*,
 };
+use std::collections::HashMap;
 
 type InterpreterResult = std::result::Result<Value, RuntimeError>;
 
@@ -167,7 +168,7 @@ impl Interpreter {
 
     fn eval_var_expr(&self, identifier: &str) -> InterpreterResult {
         if let Some(value) = self.environment.get(identifier) {
-            Ok(value.clone())
+            Ok(value)
         } else {
             Err(RuntimeError::VariableNotDeclared)
         }
@@ -197,16 +198,11 @@ impl Interpreter {
         Ok(())
     }
 
-    fn eval_block(&mut self, stmts: &Vec<Stmt>) -> Result<(), RuntimeError> {
-        let previous = self.environment.clone();
-        self.environment = Environment::new(Some(self.environment.clone()));
-        for stmt in stmts {
-            if let Some(error) = self.eval(stmt) {
-                return Err(RuntimeError::GenericError);
-            }
-        }
-        self.environment = previous;
-        Ok(())
+    fn with_new_env<T>(&mut self, fun: impl Fn(&mut Self) -> T) -> T {
+        self.environment.push();
+        let result = fun(self);
+        self.environment.pop();
+        result
     }
 
     fn eval(&mut self, stmt: &Stmt) -> Option<Error> {
@@ -233,18 +229,24 @@ impl Interpreter {
                 Ok(()) => None,
                 Err(error) => Some(Error::Runtime(error)),
             },
-            Block(stmts) => match self.eval_block(stmts) {
-                Ok(()) => None,
-                Err(error) => Some(Error::Runtime(error)),
-            },
+            Block(stmts) => self.with_new_env(|interpreter| {
+                for stmt in stmts {
+                    if let Some(err) = interpreter.eval(stmt) {
+                        println!("{:?}", err);
+                        panic!(err);
+                    }
+                }
+                None
+            }),
         }
     }
 
     pub fn interpret(&mut self, stmts: &[Stmt]) -> Option<Error> {
-        self.environment = Environment::new(None);
+        let global = HashMap::new();
+        self.environment = Environment::new(global);
         for stmt in stmts {
-            if let Some(evaluation) = self.eval(stmt) {
-                return Some(evaluation);
+            if let Some(error) = self.eval(stmt) {
+                return Some(error);
             }
         }
         // println!("{:?}", self.environment);
