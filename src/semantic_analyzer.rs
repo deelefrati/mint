@@ -76,7 +76,14 @@ impl<'a> SemanticAnalyzer<'a> {
                     },
                     Err(semantic_error) => errors.push(Error::Semantic(semantic_error)),
                 },
-                Stmt::Block(_) => {}
+                Stmt::Block(stmts) => {
+                    let mut semantic_analyzer = SemanticAnalyzer::default();
+                    if let Err(nested_errors) = semantic_analyzer.analyze(&stmts) {
+                        for err in nested_errors {
+                            errors.push(err);
+                        }
+                    }
+                }
             }
         }
         if errors.is_empty() {

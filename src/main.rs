@@ -37,7 +37,6 @@ fn main() {
                             match semantic_analyzer.analyze(&stmts) {
                                 Ok(_) => {
                                     let mut interpreter = Interpreter::default();
-                                    // interpreter.interpret(&stmts);
                                     if let Some(error) = interpreter.interpret(&stmts) {
                                         error.show_error(Some(path), Some(&lines_vec));
                                         exit(1);
