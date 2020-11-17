@@ -1,6 +1,7 @@
 use crate::{
     error::{Error, SemanticError},
     expr::*,
+    semantic_env::SemanticEnvironment,
     stmt::Stmt,
     token_type::VarType,
 };
@@ -26,70 +27,76 @@ pub enum Type {
 #[derive(Default)]
 pub struct SemanticAnalyzer<'a> {
     types: HashMap<&'a Expr, Type>,
-    symbol_table: HashMap<&'a str, Type>,
+    symbol_table: SemanticEnvironment,
+    errors: Vec<Error>,
 }
 
 impl<'a> SemanticAnalyzer<'a> {
     pub fn analyze(&mut self, stmts: &'a [Stmt]) -> Result<(), Vec<Error>> {
-        let mut errors: Vec<Error> = vec![];
         for stmt in stmts {
             match stmt {
                 Stmt::ExprStmt(expr) => match self.analyze_one(&expr) {
                     Ok(t) => self.insert(&expr, t),
-                    Err(semantic_error) => errors.push(Error::Semantic(semantic_error)),
+                    Err(semantic_error) => self.errors.push(Error::Semantic(semantic_error)),
                 },
                 Stmt::AssertStmt(expr) => match self.analyze_one(&expr) {
-                    Ok(t) if t != Type::Bool => errors.push(Error::Semantic(
-                        SemanticError::MismatchedTypes(Type::Bool, t, None),
-                    )),
-                    Err(error) => errors.push(Error::Semantic(error)),
+                    Ok(t) if t != Type::Bool => {
+                        self.errors
+                            .push(Error::Semantic(SemanticError::MismatchedTypes(
+                                Type::Bool,
+                                t,
+                                None,
+                            )))
+                    }
+                    Err(error) => self.errors.push(Error::Semantic(error)),
                     _ => {}
                 },
                 Stmt::VarStmt(var_name, var_type, expr) => match self.analyze_one(&expr) {
                     Ok(t) => match (var_type, t) {
                         (Some(VarType::Boolean), Type::Bool) => {
                             if let Err(error) = self.insert_var(var_name, Type::Bool) {
-                                errors.push(error);
+                                self.errors.push(error);
                             }
                         }
                         (Some(VarType::String), Type::Str) => {
                             if let Err(error) = self.insert_var(var_name, Type::Str) {
-                                errors.push(error);
+                                self.errors.push(error);
                             }
                         }
                         (Some(VarType::Number), Type::Num) => {
                             if let Err(error) = self.insert_var(var_name, Type::Num) {
-                                errors.push(error);
+                                self.errors.push(error);
                             }
                         }
                         (Some(VarType::Null), Type::Null) => {
                             if let Err(error) = self.insert_var(var_name, Type::Null) {
-                                errors.push(error);
+                                self.errors.push(error);
                             }
                         }
                         (None, _) => {
                             if let Err(error) = self.insert_var(var_name, t) {
-                                errors.push(error);
+                                self.errors.push(error);
                             }
                         }
-                        _ => errors.push(Error::Semantic(SemanticError::IncompatibleDeclaration)),
+                        _ => self
+                            .errors
+                            .push(Error::Semantic(SemanticError::IncompatibleDeclaration)),
                     },
-                    Err(semantic_error) => errors.push(Error::Semantic(semantic_error)),
+                    Err(semantic_error) => self.errors.push(Error::Semantic(semantic_error)),
                 },
-                Stmt::Block(stmts) => {
-                    let mut semantic_analyzer = SemanticAnalyzer::default();
-                    if let Err(nested_errors) = semantic_analyzer.analyze(&stmts) {
+                Stmt::Block(stmts) => self.with_new_env(|analyzer| {
+                    if let Err(nested_errors) = analyzer.analyze(&stmts) {
                         for err in nested_errors {
-                            errors.push(err);
+                            analyzer.errors.push(err);
                         }
                     }
-                }
+                }),
             }
         }
-        if errors.is_empty() {
+        if self.errors.is_empty() {
             Ok(())
         } else {
-            Err(errors)
+            Err(self.errors.clone())
         }
     }
 
@@ -98,17 +105,20 @@ impl<'a> SemanticAnalyzer<'a> {
     }
 
     fn insert_var(&mut self, identifier: &'a str, t: Type) -> Result<(), Error> {
-        if !self.symbol_table.contains_key(identifier) {
-            self.symbol_table.insert(identifier, t);
-            Ok(())
-        } else {
+        if self
+            .symbol_table
+            .define(identifier.to_string(), t)
+            .is_none()
+        {
             Err(Error::Semantic(SemanticError::VariableOverwrited))
+        } else {
+            Ok(())
         }
     }
 
-    fn get_var(&mut self, identifier: &str) -> Option<&Type> {
-        self.symbol_table.get(identifier)
-    }
+    // fn get_var(&mut self, identifier: &str) -> Option<&Type> {
+    //     self.symbol_table.get(identifier)
+    // }
 
     fn analyze_one(&mut self, expr: &Expr) -> Result<Type, SemanticError> {
         match expr {
@@ -122,9 +132,16 @@ impl<'a> SemanticAnalyzer<'a> {
         }
     }
 
+    fn with_new_env<T>(&mut self, fun: impl Fn(&mut Self) -> T) -> T {
+        self.symbol_table.push();
+        let result = fun(self);
+        self.symbol_table.pop();
+        result
+    }
+
     fn analyze_var_expr(&mut self, identifier: &str) -> Result<Type, SemanticError> {
-        if let Some(t) = self.get_var(identifier) {
-            Ok(*t)
+        if let Some(t) = self.symbol_table.get(identifier) {
+            Ok(t)
         } else {
             Err(SemanticError::VariableNotDeclared)
         }
