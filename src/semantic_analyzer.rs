@@ -1,7 +1,6 @@
 use crate::{
     error::{Error, SemanticError},
     expr::*,
-    semantic_env::SemanticEnvironment,
     stmt::Stmt,
     token_type::VarType,
 };
@@ -24,14 +23,26 @@ pub enum Type {
     Null,
     Str,
 }
-#[derive(Default)]
 pub struct SemanticAnalyzer<'a> {
     types: HashMap<&'a Expr, Type>,
-    symbol_table: SemanticEnvironment,
+    symbol_table: Vec<HashMap<String, Type>>,
     errors: Vec<Error>,
 }
 
+impl<'a> Default for SemanticAnalyzer<'a> {
+    fn default() -> Self {
+        SemanticAnalyzer::new()
+    }
+}
 impl<'a> SemanticAnalyzer<'a> {
+    pub fn new() -> Self {
+        SemanticAnalyzer {
+            types: HashMap::default(),
+            symbol_table: vec![HashMap::default()],
+            errors: vec![],
+        }
+    }
+
     pub fn analyze(&mut self, stmts: &'a [Stmt]) -> Result<(), Vec<Error>> {
         for stmt in stmts {
             match stmt {
@@ -104,14 +115,12 @@ impl<'a> SemanticAnalyzer<'a> {
         self.types.insert(expr, t);
     }
 
-    fn insert_var(&mut self, identifier: &'a str, t: Type) -> Result<(), Error> {
-        if self
-            .symbol_table
-            .define(identifier.to_string(), t)
-            .is_none()
-        {
+    fn insert_var(&mut self, id: &str, t: Type) -> Result<(), Error> {
+        let last_env = self.symbol_table.last_mut().unwrap();
+        if last_env.contains_key(id) {
             Err(Error::Semantic(SemanticError::VariableOverwrited))
         } else {
+            last_env.insert(id.to_string(), t);
             Ok(())
         }
     }
@@ -133,18 +142,20 @@ impl<'a> SemanticAnalyzer<'a> {
     }
 
     fn with_new_env<T>(&mut self, fun: impl Fn(&mut Self) -> T) -> T {
-        self.symbol_table.push();
+        self.symbol_table.push(HashMap::default());
         let result = fun(self);
         self.symbol_table.pop();
         result
     }
 
     fn analyze_var_expr(&mut self, identifier: &str) -> Result<Type, SemanticError> {
-        if let Some(t) = self.symbol_table.get(identifier) {
-            Ok(t)
-        } else {
-            Err(SemanticError::VariableNotDeclared)
+        for env in self.symbol_table.iter().rev() {
+            if let Some(t) = env.get(identifier) {
+                return Ok(*t);
+            }
         }
+
+        Err(SemanticError::VariableNotDeclared)
     }
 
     fn analyze_unary(&mut self, op: &UnaryOp, exp: &Expr) -> Result<Type, SemanticError> {

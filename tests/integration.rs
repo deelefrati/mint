@@ -40,5 +40,6 @@ fn merge_out_err(output: &Output) -> String {
     out += &String::from_utf8_lossy(&output.stdout);
     out += "=== Stderr ===\n";
     out += &String::from_utf8_lossy(&output.stderr);
+    out += "==============\n";
     out
 }
