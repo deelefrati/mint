@@ -96,12 +96,32 @@ impl<'a> SemanticAnalyzer<'a> {
                     Err(semantic_error) => self.errors.push(Error::Semantic(semantic_error)),
                 },
                 Stmt::Block(stmts) => self.with_new_env(|analyzer| {
-                    if let Err(nested_errors) = analyzer.analyze(&stmts) {
+                    if let Err(nested_errors) = analyzer.analyze(stmts) {
                         for err in nested_errors {
                             analyzer.errors.push(err);
                         }
                     }
                 }),
+                Stmt::IfStmt(cond, then, r#else) => {
+                    match self.analyze_one(&cond) {
+                        Ok(t) => self.insert(&cond, t),
+                        Err(semantic_error) => self.errors.push(Error::Semantic(semantic_error)),
+                    }
+                    self.with_new_env(|analyzer| {
+                        if let Err(nested_errors) = analyzer.analyze(then) {
+                            for err in nested_errors {
+                                analyzer.errors.push(err);
+                            }
+                        }
+                    });
+                    self.with_new_env(|analyzer| {
+                        if let Err(nested_errors) = analyzer.analyze(r#else) {
+                            for err in nested_errors {
+                                analyzer.errors.push(err);
+                            }
+                        }
+                    });
+                }
             }
         }
         if self.errors.is_empty() {
@@ -124,10 +144,6 @@ impl<'a> SemanticAnalyzer<'a> {
             Ok(())
         }
     }
-
-    // fn get_var(&mut self, identifier: &str) -> Option<&Type> {
-    //     self.symbol_table.get(identifier)
-    // }
 
     fn analyze_one(&mut self, expr: &Expr) -> Result<Type, SemanticError> {
         match expr {

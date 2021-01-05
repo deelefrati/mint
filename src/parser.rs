@@ -87,11 +87,25 @@ impl<'a> Parser<'a> {
     fn declaration(&mut self) -> Result<Stmt, ParserError> {
         if self.next_is(single(Const)).is_some() {
             self.var_declaration()
+        } else if self.next_is(single(If)).is_some() {
+            self.if_statement()
         } else {
             self.statement()
         }
     }
 
+    fn if_statement(&mut self) -> Result<Stmt, ParserError> {
+        self.consume(LeftParen)?;
+        let cond = self.expression()?;
+        self.consume(RightParen)?;
+        let then = vec![self.statement()?];
+        let r#else = if self.next_is(single(Else)).is_some() {
+            vec![self.statement()?]
+        } else {
+            vec![]
+        };
+        Ok(Stmt::IfStmt(cond, then, r#else))
+    }
     fn var_declaration(&mut self) -> Result<Stmt, ParserError> {
         if let Some((token_type, _)) = self.next_is(|tt| match tt {
             Identifier(variable) => Some(variable.clone()),

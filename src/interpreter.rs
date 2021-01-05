@@ -6,7 +6,7 @@ use crate::{
 };
 use std::collections::HashMap;
 
-type InterpreterResult = std::result::Result<Value, RuntimeError>;
+type InterpreterResult = Result<Value, RuntimeError>;
 
 #[derive(Default)]
 pub struct Interpreter {
@@ -205,39 +205,48 @@ impl Interpreter {
         result
     }
 
-    fn eval(&mut self, stmt: &Stmt) -> Option<Error> {
+    fn eval(&mut self, stmt: &Stmt) -> Result<(), Error> {
         use Stmt::*;
         match stmt {
             ExprStmt(expr) => match self.eval_expr(expr) {
-                Ok(value) => {
-                    println!("{}", value);
-                    None
-                }
-                Err(error) => Some(Error::Runtime(error)),
+                Ok(_) => Ok(()),
+                Err(e) => Err(Error::Runtime(e)),
             },
             AssertStmt(expr) => match self.eval_expr(expr) {
-                Ok(value) => {
-                    if value != Value::Boolean(true) {
-                        Some(Error::Runtime(RuntimeError::AssertionFailed))
-                    } else {
-                        None
-                    }
-                }
-                Err(error) => Some(Error::Runtime(error)),
+                Ok(Value::Boolean(true)) => Ok(()),
+                Ok(_) => Err(Error::Runtime(RuntimeError::AssertionFailed)),
+                Err(error) => Err(Error::Runtime(error)),
             },
             VarStmt(identifier, _, expr) => match self.eval_var_stmt(identifier, expr) {
-                Ok(()) => None,
-                Err(error) => Some(Error::Runtime(error)),
+                Ok(_) => Ok(()),
+                Err(error) => Err(Error::Runtime(error)),
             },
             Block(stmts) => self.with_new_env(|interpreter| {
                 for stmt in stmts {
-                    if let Some(err) = interpreter.eval(stmt) {
-                        println!("{:?}", err);
-                        panic!(err);
+                    let res = interpreter.eval(stmt);
+                    if res.is_err() {
+                        return res;
                     }
                 }
-                None
+                Ok(())
             }),
+            IfStmt(cond, then, r#else) => match self.eval_expr(cond) {
+                Ok(val) => match val.to_bool() {
+                    true => {
+                        for then in then {
+                            self.eval(then)?;
+                        }
+                        Ok(())
+                    }
+                    false => {
+                        for r#else in r#else {
+                            self.eval(r#else)?;
+                        }
+                        Ok(())
+                    }
+                },
+                Err(e) => Err(Error::Runtime(e)),
+            },
         }
     }
 
@@ -245,7 +254,7 @@ impl Interpreter {
         let global = HashMap::new();
         self.environment = Environment::new(global);
         for stmt in stmts {
-            if let Some(error) = self.eval(stmt) {
+            if let Err(error) = self.eval(stmt) {
                 return Some(error);
             }
         }

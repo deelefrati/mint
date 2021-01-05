@@ -13,7 +13,7 @@ pub fn create_lines_vec(source_code: &str) -> Vec<String> {
                 line.push(c);
             }
         }
-        if line != "" {
+        if !line.is_empty() {
             vec_lines.push(line);
         }
         vec_lines

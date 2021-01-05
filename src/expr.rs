@@ -13,7 +13,7 @@ impl std::fmt::Display for UnaryOp {
         }
     }
 }
-#[derive(Clone, PartialEq, Debug, Copy)]
+#[derive(Clone, PartialEq, Debug, Copy, Hash)]
 pub enum UnaryOp {
     Minus,
     Plus,
@@ -31,7 +31,7 @@ impl std::fmt::Display for ArithmeticOp {
         }
     }
 }
-#[derive(Clone, PartialEq, Debug, Copy)]
+#[derive(Clone, PartialEq, Debug, Copy, Hash)]
 pub enum ArithmeticOp {
     Add,
     Sub,
@@ -54,7 +54,7 @@ impl std::fmt::Display for ComparationOp {
         }
     }
 }
-#[derive(Clone, PartialEq, Debug, Copy)]
+#[derive(Clone, PartialEq, Debug, Copy, Hash)]
 pub enum ComparationOp {
     Equal,
     StrictEqual,
@@ -74,7 +74,7 @@ impl std::fmt::Display for LogicalOp {
         }
     }
 }
-#[derive(Clone, PartialEq, Debug, Copy)]
+#[derive(Clone, PartialEq, Debug, Copy, Hash)]
 pub enum LogicalOp {
     And,
     Or,
@@ -96,6 +96,16 @@ pub enum Value {
     Boolean(bool),
     Number(f64),
     Str(String),
+}
+
+impl Value {
+    pub fn to_bool(&self) -> bool {
+        match self {
+            Value::Null | Value::Boolean(false) => false,
+            Value::Number(n) => *n <= f64::EPSILON,
+            _ => true,
+        }
+    }
 }
 
 #[derive(Clone, PartialEq, Debug)]
