@@ -276,6 +276,26 @@ impl<'a> Parser<'a> {
         }
     }
 
+    fn call(&mut self) -> Result<Expr, ParserError> {
+        let mut expr = self.primary()?;
+        while self.next_is(single(LeftParen)).is_some() {
+            expr = self.finish_call(expr)?;
+        }
+        Ok(expr)
+    }
+
+    fn finish_call(&mut self, callee: Expr) -> Result<Expr, ParserError> {
+        let mut arguments: Vec<Expr> = Vec::new();
+        if self.next_is(single(RightParen)).is_none() {
+            arguments.push(self.expression()?);
+            while self.next_is(single(Comma)).is_some() {
+                arguments.push(self.expression()?);
+            }
+            self.consume(RightParen)?;
+        }
+        Ok(Expr::Call(Box::new(callee), arguments))
+    }
+
     fn primary(&mut self) -> Result<Expr, ParserError> {
         if self.next_is(single(LeftParen)).is_some() {
             let expr = self.expression()?;

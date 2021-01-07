@@ -1,6 +1,6 @@
 use crate::expr::Value;
 use std::{cell::RefCell, collections::HashMap, rc::Rc};
-#[derive(Clone, Default)]
+#[derive(Clone, Default, Debug)]
 pub struct Environment {
     inner: Rc<InnerEnv>,
 }

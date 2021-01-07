@@ -188,6 +188,7 @@ impl Interpreter {
             Grouping(new_expr) => self.eval_expr(new_expr),
             Variable(_, identifier) => self.eval_var_expr(identifier),
             Literal(value_and_token) => Ok(value_and_token.clone().0),
+            Call(calle, params) => if let Value::Fun(fun) = self.eval_expr(calee)? {},
         }
     }
 

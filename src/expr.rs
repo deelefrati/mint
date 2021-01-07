@@ -1,6 +1,11 @@
+use crate::environment::Environment;
+use crate::error::Error;
+use crate::interpreter::Interpreter;
+use crate::stmt::Stmt;
 use crate::token::Token;
 use std::hash::{Hash, Hasher};
 use std::ptr::hash;
+use std::rc::Rc;
 
 pub type OpWithToken<Op> = (Op, Token);
 
@@ -96,6 +101,7 @@ pub enum Value {
     Boolean(bool),
     Number(f64),
     Str(String),
+    Fun(Callable),
 }
 
 impl Value {
@@ -117,6 +123,7 @@ pub enum Expr {
     Grouping(Box<Expr>),
     Literal(OpWithToken<Value>),
     Variable(Token, String),
+    Call(Box<Expr>, Vec<Expr>),
 }
 
 impl Hash for &Expr {
@@ -129,3 +136,17 @@ impl Hash for &Expr {
 }
 
 impl Eq for &Expr {}
+
+#[derive(Clone, Debug)]
+pub struct Callable {
+    env: Environment,
+    name: Token,
+    params: Vec<Token>,
+    body: Rc<Stmt>,
+}
+
+impl Callable {
+    pub fn call(&self, interpreter: &mut Interpreter, args: &[Value]) -> Result<Value, Error> {
+        interpreter.eval_func(self, args)
+    }
+}
