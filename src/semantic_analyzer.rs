@@ -122,6 +122,7 @@ impl<'a> SemanticAnalyzer<'a> {
                         }
                     });
                 }
+                Stmt::Function(_, _, _) => {}
             }
         }
         if self.errors.is_empty() {
@@ -154,6 +155,7 @@ impl<'a> SemanticAnalyzer<'a> {
             Expr::Grouping(expr) => self.analyze_one(expr),
             Expr::Literal((value, _)) => Ok(self.analyze_literal(value)),
             Expr::Variable(_, identifier) => self.analyze_var_expr(identifier),
+            Expr::Call(_, _) => Ok(Type::Null),
         }
     }
 
@@ -290,6 +292,7 @@ impl<'a> SemanticAnalyzer<'a> {
             Value::Boolean(_) => Type::Bool,
             Value::Number(_) => Type::Num,
             Value::Str(_) => Type::Str,
+            Value::Fun(_) => Type::Null,
         }
     }
 }

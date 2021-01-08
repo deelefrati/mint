@@ -1,5 +1,5 @@
 use crate::environment::Environment;
-use crate::error::Error;
+use crate::error::RuntimeError;
 use crate::interpreter::Interpreter;
 use crate::stmt::Stmt;
 use crate::token::Token;
@@ -92,6 +92,7 @@ impl std::fmt::Display for Value {
             Value::Boolean(bool) => write!(f, "{}", bool),
             Value::Number(num) => write!(f, "{}", num),
             Value::Str(string) => write!(f, "{}", string),
+            Value::Fun(_) => write!(f, "function"),
         }
     }
 }
@@ -111,6 +112,20 @@ impl Value {
             Value::Number(n) => *n <= f64::EPSILON,
             _ => true,
         }
+    }
+
+    pub fn new_function(
+        env: Environment,
+        name: Token,
+        params: Vec<Token>,
+        body: Rc<Stmt>,
+    ) -> Value {
+        Value::Fun(Callable {
+            env,
+            name,
+            params,
+            body,
+        })
     }
 }
 
@@ -137,7 +152,7 @@ impl Hash for &Expr {
 
 impl Eq for &Expr {}
 
-#[derive(Clone, Debug)]
+#[derive(PartialEq, Clone, Debug)]
 pub struct Callable {
     env: Environment,
     name: Token,
@@ -146,7 +161,23 @@ pub struct Callable {
 }
 
 impl Callable {
-    pub fn call(&self, interpreter: &mut Interpreter, args: &[Value]) -> Result<Value, Error> {
+    pub fn call(
+        &self,
+        interpreter: &mut Interpreter,
+        args: &[Value],
+    ) -> Result<Value, RuntimeError> {
         interpreter.eval_func(self, args)
+    }
+
+    pub fn env(&self) -> &Environment {
+        &self.env
+    }
+
+    pub fn params(&self) -> &Vec<Token> {
+        &self.params
+    }
+
+    pub fn body(&self) -> &Rc<Stmt> {
+        &self.body
     }
 }

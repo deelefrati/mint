@@ -1,6 +1,6 @@
 use crate::expr::Value;
 use std::{cell::RefCell, collections::HashMap, rc::Rc};
-#[derive(Clone, Default, Debug)]
+#[derive(PartialEq, Clone, Default, Debug)]
 pub struct Environment {
     inner: Rc<InnerEnv>,
 }
@@ -33,7 +33,7 @@ impl Environment {
     }
 }
 
-#[derive(Clone, Default, Debug)]
+#[derive(PartialEq, Clone, Default, Debug)]
 struct InnerEnv {
     previous: Option<Rc<Self>>,
     current: RefCell<HashMap<String, Value>>,

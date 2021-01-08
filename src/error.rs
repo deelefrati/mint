@@ -21,6 +21,7 @@ pub enum RuntimeError {
     DivisionByZero(usize, usize, usize),
     AssertionFailed,
     VariableNotDeclared,
+    NotCallable,
 }
 
 #[derive(Debug, PartialEq, Clone)]

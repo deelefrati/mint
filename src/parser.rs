@@ -211,7 +211,6 @@ impl<'a> Parser<'a> {
         while let Some(op_and_token) = self.next_is(|tt| match tt {
             EqualEqual => Some(ComparationOp::Equal),
             EqualEqualEqual => Some(ComparationOp::StrictEqual),
-            BangEqual => Some(ComparationOp::NotEqual),
             BangEqualEqual => Some(ComparationOp::StrictNotEqual),
             _ => None,
         }) {
@@ -272,7 +271,7 @@ impl<'a> Parser<'a> {
         }) {
             Ok(Expr::Unary(op_and_token, self.unary()?.into()))
         } else {
-            self.primary()
+            self.call()
         }
     }
 

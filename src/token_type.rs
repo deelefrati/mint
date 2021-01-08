@@ -18,7 +18,7 @@ impl std::fmt::Display for TokenType {
             TokenType::Blank => write!(f, "blank"),
             TokenType::NewLine => write!(f, "new_line"),
             TokenType::Bang => write!(f, "!"),
-            TokenType::BangEqual => write!(f, "!="),
+            //TokenType::BangEqual => write!(f, "!="),
             TokenType::BangEqualEqual => write!(f, "!=="),
             TokenType::Equal => write!(f, "="),
             TokenType::EqualEqual => write!(f, "=="),
@@ -73,7 +73,7 @@ pub enum TokenType {
 
     // One or two character tokens.
     Bang,
-    BangEqual,
+    // BangEqual,
     BangEqualEqual,
     Equal,
     EqualEqual,

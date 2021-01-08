@@ -48,7 +48,7 @@ impl Interpreter {
     }
 
     fn eval_binary_arith_expr(
-        &self,
+        &mut self,
         left: &Expr,
         op_and_token: &OpWithToken<ArithmeticOp>,
         right: &Expr,
@@ -75,7 +75,7 @@ impl Interpreter {
     }
 
     fn eval_unary_expr(
-        &self,
+        &mut self,
         op_and_token: &OpWithToken<UnaryOp>,
         right: &Expr,
     ) -> InterpreterResult {
@@ -85,7 +85,7 @@ impl Interpreter {
     }
 
     fn eval_comp_expr(
-        &self,
+        &mut self,
         left: &Expr,
         op_and_token: &OpWithToken<ComparationOp>,
         right: &Expr,
@@ -147,7 +147,7 @@ impl Interpreter {
     }
 
     fn eval_logical_expr(
-        &self,
+        &mut self,
         left: &Expr,
         op_and_token: &OpWithToken<LogicalOp>,
         right: &Expr,
@@ -174,7 +174,7 @@ impl Interpreter {
         }
     }
 
-    fn eval_expr(&self, expr: &Expr) -> InterpreterResult {
+    fn eval_expr(&mut self, expr: &Expr) -> InterpreterResult {
         use Expr::*;
         match expr {
             Arithmetic(left, op_and_token, right) => {
@@ -188,8 +188,35 @@ impl Interpreter {
             Grouping(new_expr) => self.eval_expr(new_expr),
             Variable(_, identifier) => self.eval_var_expr(identifier),
             Literal(value_and_token) => Ok(value_and_token.clone().0),
-            Call(calle, params) => if let Value::Fun(fun) = self.eval_expr(calee)? {},
+            Call(callee, params) => {
+                if let Value::Fun(fun) = self.eval_expr(callee)? {
+                    let mut args = Vec::with_capacity(params.len());
+                    for expr in params {
+                        args.push(self.eval_expr(expr)?);
+                    }
+                    fun.call(self, args.as_slice())
+                } else {
+                    Err(RuntimeError::NotCallable)
+                }
+            }
         }
+    }
+
+    pub fn eval_func(&mut self, fun: &Callable, args: &[Value]) -> Result<Value, RuntimeError> {
+        let old = std::mem::replace(&mut self.environment, fun.env().clone());
+        let result = self.with_new_env(|interpreter| {
+            for (param, value) in fun.params().iter().zip(args) {
+                interpreter
+                    .environment
+                    .define(param.token_type().to_string(), value.clone());
+            }
+            match interpreter.eval(&fun.body()) {
+                Err(_) => Err(RuntimeError::GenericError), // TODO mostrar o erro corretamente
+                _ => Ok(Value::Null),
+            }
+        });
+        self.environment = old;
+        result
     }
 
     fn eval_var_stmt(&mut self, identifier: &str, expr: &Expr) -> Result<(), RuntimeError> {
@@ -248,6 +275,15 @@ impl Interpreter {
                 },
                 Err(e) => Err(Error::Runtime(e)),
             },
+            Function(token, params, body) => Ok(self.environment.define(
+                token.token_type().to_string(),
+                Value::new_function(
+                    self.environment.clone(),
+                    token.clone(),
+                    params.clone(),
+                    body.clone(),
+                ),
+            )),
         }
     }
 
