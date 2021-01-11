@@ -7,15 +7,23 @@ pub struct Token {
     starts_at: usize,
     ends_at: usize,
     line: usize,
+    lexeme: String,
 }
 
 impl Token {
-    pub fn new(token_type: TokenType, line: usize, starts_at: usize, ends_at: usize) -> Self {
+    pub fn new(
+        token_type: TokenType,
+        line: usize,
+        starts_at: usize,
+        ends_at: usize,
+        lexeme: String,
+    ) -> Self {
         Self {
             token_type,
             line,
             starts_at,
             ends_at,
+            lexeme,
         }
     }
 
@@ -33,5 +41,8 @@ impl Token {
 
     pub fn line(&self) -> usize {
         self.line
+    }
+    pub fn lexeme(&self) -> String {
+        self.lexeme.clone()
     }
 }

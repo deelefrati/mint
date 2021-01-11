@@ -1,6 +1,6 @@
 function foo(){
- const a = 1+1;
- assert(a === 2); 
+   const a = 1+1;
+   assert(a === 2); 
 }
 
 const a =  3;

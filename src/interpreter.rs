@@ -32,7 +32,6 @@ impl Interpreter {
                 if *b != 0.0 {
                     Ok(Value::Number(a / b))
                 } else {
-                    println!("AAA");
                     Err(RuntimeError::DivisionByZero(
                         token.line(),
                         token.starts_at(),
@@ -210,6 +209,7 @@ impl Interpreter {
                     .environment
                     .define(param.token_type().to_string(), value.clone());
             }
+
             match interpreter.eval(&fun.body()) {
                 Err(_) => Err(RuntimeError::GenericError), // TODO mostrar o erro corretamente
                 _ => Ok(Value::Null),
@@ -237,7 +237,10 @@ impl Interpreter {
         use Stmt::*;
         match stmt {
             ExprStmt(expr) => match self.eval_expr(expr) {
-                Ok(_) => Ok(()),
+                Ok(value) => {
+                    println!("{}", value);
+                    Ok(())
+                }
                 Err(e) => Err(Error::Runtime(e)),
             },
             AssertStmt(expr) => match self.eval_expr(expr) {
@@ -275,15 +278,18 @@ impl Interpreter {
                 },
                 Err(e) => Err(Error::Runtime(e)),
             },
-            Function(token, params, body) => Ok(self.environment.define(
-                token.token_type().to_string(),
-                Value::new_function(
-                    self.environment.clone(),
-                    token.clone(),
-                    params.clone(),
-                    body.clone(),
-                ),
-            )),
+            Function(token, params, body) => {
+                self.environment.define(
+                    token.lexeme(),
+                    Value::new_function(
+                        self.environment.clone(),
+                        token.clone(),
+                        params.clone(),
+                        body.clone(),
+                    ),
+                );
+                Ok(())
+            }
         }
     }
 
@@ -295,7 +301,6 @@ impl Interpreter {
                 return Some(error);
             }
         }
-        // println!("{:?}", self.environment);
         None
     }
 }

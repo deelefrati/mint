@@ -89,9 +89,27 @@ impl<'a> Parser<'a> {
             self.var_declaration()
         } else if self.next_is(single(If)).is_some() {
             self.if_statement()
+        } else if self.next_is(single(Function)).is_some() {
+            self.fun()
         } else {
             self.statement()
         }
+    }
+
+    fn fun(&mut self) -> Result<Stmt, ParserError> {
+        // TODO ajustar a função p/ receber tipos de parametros
+        let identifier = self.consume(Identifier)?;
+        let mut params = vec![];
+        self.consume(LeftParen)?;
+        if self.next_is(single(RightParen)).is_none() {
+            params.push(self.consume(Identifier)?);
+            while self.next_is(single(Comma)).is_some() {
+                params.push(self.consume(Identifier)?);
+            }
+            self.consume(RightParen)?;
+        }
+        self.consume(LeftBrace)?;
+        Ok(Stmt::Function(identifier, params, self.block()?.into()))
     }
 
     fn if_statement(&mut self) -> Result<Stmt, ParserError> {
@@ -107,34 +125,28 @@ impl<'a> Parser<'a> {
         Ok(Stmt::IfStmt(cond, then, r#else))
     }
     fn var_declaration(&mut self) -> Result<Stmt, ParserError> {
-        if let Some((token_type, _)) = self.next_is(|tt| match tt {
-            Identifier(variable) => Some(variable.clone()),
-            _ => None,
-        }) {
-            if self.next_is(single(Colon)).is_some() {
-                if let Some((var_type, _)) = self.next_is(|tt| match tt {
-                    Num => Some(VarType::Number),
-                    Str => Some(VarType::String),
-                    Bool => Some(VarType::Boolean),
-                    Null => Some(VarType::Null),
-                    _ => None,
-                }) {
-                    self.consume(Equal)?;
-                    let expr = self.expression()?;
-                    self.consume(Semicolon)?;
-                    Ok(Stmt::VarStmt(token_type, Some(var_type), expr))
-                } else {
-                    Err(ParserError::TypeNotDefined(self.current_line))
-                }
-            } else if self.next_is(single(Equal)).is_some() {
+        let identifier = self.consume(Identifier)?;
+        if self.next_is(single(Colon)).is_some() {
+            if let Some((var_type, _)) = self.next_is(|tt| match tt {
+                Num => Some(VarType::Number),
+                Str => Some(VarType::String),
+                Bool => Some(VarType::Boolean),
+                Null => Some(VarType::Null),
+                _ => None,
+            }) {
+                self.consume(Equal)?;
                 let expr = self.expression()?;
                 self.consume(Semicolon)?;
-                Ok(Stmt::VarStmt(token_type, None, expr))
+                Ok(Stmt::VarStmt(identifier.lexeme(), Some(var_type), expr))
             } else {
-                Err(ParserError::AssignmentExpected(self.current_line))
+                Err(ParserError::TypeNotDefined(self.current_line))
             }
+        } else if self.next_is(single(Equal)).is_some() {
+            let expr = self.expression()?;
+            self.consume(Semicolon)?;
+            Ok(Stmt::VarStmt(identifier.lexeme(), None, expr))
         } else {
-            Err(ParserError::IdentifierExpected(self.current_line))
+            Err(ParserError::AssignmentExpected(self.current_line))
         }
     }
 
@@ -290,8 +302,10 @@ impl<'a> Parser<'a> {
             while self.next_is(single(Comma)).is_some() {
                 arguments.push(self.expression()?);
             }
+
             self.consume(RightParen)?;
         }
+        self.consume(Semicolon)?;
         Ok(Expr::Call(Box::new(callee), arguments))
     }
 
@@ -309,12 +323,10 @@ impl<'a> Parser<'a> {
             _ => None,
         }) {
             Ok(Expr::Literal(op_and_token))
-        } else if let Some((var_name, token)) = self.next_is(|tt| match tt {
-            Identifier(name) => Some(name.clone()),
-            _ => None,
-        }) {
-            Ok(Expr::Variable(token, var_name))
+        } else if let Some((_, token)) = self.next_is(single(Identifier)) {
+            Ok(Expr::Variable(token.clone(), token.lexeme()))
         } else {
+            println!("{:?}", self.tokens.first());
             Err(ParserError::MissingExpression(self.current_line))
         }
     }

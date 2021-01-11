@@ -57,8 +57,8 @@ impl<'a> Scanner<'a> {
                 '%' => Mod,
                 ':' => Colon,
                 ';' => Semicolon,
-                '!' => self.match_char_or_else('=', BangEqualEqual, Bang),
-                '=' => self.match_char_or_else('=', EqualEqualEqual, Equal),
+                '!' => self.match_double_char_or_else('=', BangEqualEqual, Bang)?,
+                '=' => self.match_double_char_or_else('=', EqualEqualEqual, Equal)?,
                 '<' => self.match_char_or_else('=', LessEqual, Less),
                 '>' => self.match_char_or_else('=', GreaterEqual, Greater),
                 '&' => {
@@ -136,20 +136,25 @@ impl<'a> Scanner<'a> {
                         self.end_token = 0;
                     }
                     Blank | Comment => (),
-                    _ => self.add_token(token),
+                    _ => self.add_token(token, self.consumed().to_string()),
                 }
             } else {
                 break;
             }
             self.source = self.chars.as_str();
         }
-        self.add_token(Eof);
+        self.add_token(Eof, "EOF".to_string());
         Ok(&self.tokens)
     }
 
-    fn add_token(&mut self, tt: TokenType) {
-        self.tokens
-            .push(Token::new(tt, self.line, self.start_token, self.end_token));
+    fn add_token(&mut self, tt: TokenType, lexeme: String) {
+        self.tokens.push(Token::new(
+            tt,
+            self.line,
+            self.start_token,
+            self.end_token,
+            lexeme,
+        ));
     }
 
     fn advance(&mut self) -> Option<char> {
@@ -179,26 +184,50 @@ impl<'a> Scanner<'a> {
         }
     }
 
-    //fn match_char_or_else_or_else(
-    //    &mut self,
-    //    expected: char,
-    //    tt1: TokenType,
-    //    tt2: TokenType,
-    //    tt3: TokenType,
-    //) -> TokenType {
-    //    if Some(expected) == self.peek() {
-    //        self.advance();
+    fn match_double_char_or_else(
+        &mut self,
+        expected: char,
+        tt1: TokenType,
+        tt2: TokenType,
+    ) -> Result<TokenType, Error> {
+        if Some(expected) == self.peek() {
+            self.advance();
+            if Some(expected) == self.peek() {
+                self.advance();
+                Ok(tt1)
+            } else {
+                Err(Error::Scanner(ScannerError::InvalidToken(
+                    self.line,
+                    tt1,
+                    self.start_token,
+                    self.end_token,
+                )))
+            }
+        } else {
+            Ok(tt2)
+        }
+    }
+
+    //    fn match_char_or_else_or_else(
+    //        &mut self,
+    //        expected: char,
+    //        tt1: TokenType,
+    //        tt2: TokenType,
+    //        tt3: TokenType,
+    //    ) -> TokenType {
     //        if Some(expected) == self.peek() {
     //            self.advance();
-    //            tt1
+    //            if Some(expected) == self.peek() {
+    //                self.advance();
+    //                tt1
+    //            } else {
+    //                self.advance();
+    //                tt2
+    //            }
     //        } else {
-    //            self.advance();
-    //            tt2
+    //            tt3
     //        }
-    //    } else {
-    //        tt3
     //    }
-    //}
 
     fn slash_or_comment(&mut self) -> TokenType {
         if self.match_char('/') {
@@ -256,10 +285,8 @@ impl<'a> Scanner<'a> {
 
     fn identifier_or_keyword(&mut self) -> TokenType {
         self.take_while(is_alphanumeric);
-
         let text = self.consumed();
-        self.get_keyword(&text)
-            .unwrap_or_else(|| TokenType::Identifier(text.into()))
+        self.get_keyword(&text).unwrap_or(TokenType::Identifier)
     }
 
     fn get_keyword(&self, token: &str) -> Option<TokenType> {

@@ -29,7 +29,7 @@ impl std::fmt::Display for TokenType {
             TokenType::LessEqual => write!(f, "<="),
             TokenType::And => write!(f, "&&"),
             TokenType::Or => write!(f, "||"),
-            TokenType::Identifier(var_name) => write!(f, "{}", var_name),
+            TokenType::Identifier => write!(f, "Identifier"),
             TokenType::String(string) => write!(f, "{}", string),
             TokenType::Number(num) => write!(f, "{}", num),
             TokenType::Num => write!(f, "number"),
@@ -86,8 +86,8 @@ pub enum TokenType {
     Or,
 
     // Literals.
-    Identifier(std::string::String),
     String(std::string::String),
+    Identifier,
     Number(f64),
 
     // keywords
