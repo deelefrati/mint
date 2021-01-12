@@ -123,6 +123,7 @@ impl<'a> SemanticAnalyzer<'a> {
                     });
                 }
                 Stmt::Function(_, _, _) => {}
+                Stmt::Return(_) => {}
             }
         }
         if self.errors.is_empty() {

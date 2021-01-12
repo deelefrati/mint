@@ -1,3 +1,4 @@
+use crate::expr::Value;
 use crate::semantic_analyzer::Type;
 
 use crate::{
@@ -14,7 +15,11 @@ pub enum Error {
     Runtime(RuntimeError),
     Unexpected,
 }
-
+impl From<RuntimeError> for Error {
+    fn from(err: RuntimeError) -> Self {
+        Error::Runtime(err)
+    }
+}
 #[derive(Debug, PartialEq, Clone)]
 pub enum RuntimeError {
     GenericError,
@@ -22,6 +27,8 @@ pub enum RuntimeError {
     AssertionFailed,
     VariableNotDeclared,
     NotCallable,
+    ArityMismatch(usize, usize),
+    Return(Value),
 }
 
 #[derive(Debug, PartialEq, Clone)]

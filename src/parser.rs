@@ -97,14 +97,40 @@ impl<'a> Parser<'a> {
     }
 
     fn fun(&mut self) -> Result<Stmt, ParserError> {
-        // TODO ajustar a função p/ receber tipos de parametros
         let identifier = self.consume(Identifier)?;
         let mut params = vec![];
         self.consume(LeftParen)?;
         if self.next_is(single(RightParen)).is_none() {
             params.push(self.consume(Identifier)?);
-            while self.next_is(single(Comma)).is_some() {
-                params.push(self.consume(Identifier)?);
+            self.consume(Colon)?;
+            if self
+                .next_is(|tt| match tt {
+                    Num => Some(VarType::Number),
+                    Str => Some(VarType::String),
+                    Bool => Some(VarType::Boolean),
+                    _ => None,
+                })
+                .is_some()
+            {
+                while self.next_is(single(Comma)).is_some() {
+                    params.push(self.consume(Identifier)?);
+                    self.consume(Colon)?;
+                    if self
+                        .next_is(|tt| match tt {
+                            Num => Some(VarType::Number),
+                            Str => Some(VarType::String),
+                            Bool => Some(VarType::Boolean),
+                            _ => None,
+                        })
+                        .is_some()
+                    {
+                        continue; // TODO
+                    } else {
+                        return Err(ParserError::TypeNotDefined(self.current_line));
+                    }
+                }
+            } else {
+                return Err(ParserError::TypeNotDefined(self.current_line));
             }
             self.consume(RightParen)?;
         }
@@ -155,9 +181,21 @@ impl<'a> Parser<'a> {
             self.assert()
         } else if self.consume(LeftBrace).is_ok() {
             self.block()
+        } else if self.consume(Return).is_ok() {
+            self.return_()
         } else {
             self.expression_statement()
         }
+    }
+
+    fn return_(&mut self) -> Result<Stmt, ParserError> {
+        Ok(Stmt::Return(if self.next_is(single(Semicolon)).is_none() {
+            let expr = self.expression()?;
+            self.consume(Semicolon)?;
+            Some(expr)
+        } else {
+            None
+        }))
     }
 
     fn block(&mut self) -> Result<Stmt, ParserError> {
@@ -305,7 +343,7 @@ impl<'a> Parser<'a> {
 
             self.consume(RightParen)?;
         }
-        self.consume(Semicolon)?;
+        //self.consume(Semicolon)?;
         Ok(Expr::Call(Box::new(callee), arguments))
     }
 
@@ -326,7 +364,6 @@ impl<'a> Parser<'a> {
         } else if let Some((_, token)) = self.next_is(single(Identifier)) {
             Ok(Expr::Variable(token.clone(), token.lexeme()))
         } else {
-            println!("{:?}", self.tokens.first());
             Err(ParserError::MissingExpression(self.current_line))
         }
     }

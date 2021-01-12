@@ -169,6 +169,10 @@ impl Callable {
         interpreter.eval_func(self, args)
     }
 
+    pub fn arity(&self) -> usize {
+        self.params.len()
+    }
+
     pub fn env(&self) -> &Environment {
         &self.env
     }

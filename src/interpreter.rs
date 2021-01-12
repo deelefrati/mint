@@ -189,11 +189,15 @@ impl Interpreter {
             Literal(value_and_token) => Ok(value_and_token.clone().0),
             Call(callee, params) => {
                 if let Value::Fun(fun) = self.eval_expr(callee)? {
-                    let mut args = Vec::with_capacity(params.len());
-                    for expr in params {
-                        args.push(self.eval_expr(expr)?);
+                    if fun.arity() == params.len() {
+                        let mut args = Vec::with_capacity(params.len());
+                        for expr in params {
+                            args.push(self.eval_expr(expr)?);
+                        }
+                        fun.call(self, args.as_slice())
+                    } else {
+                        Err(RuntimeError::ArityMismatch(fun.arity(), params.len()))
                     }
-                    fun.call(self, args.as_slice())
                 } else {
                     Err(RuntimeError::NotCallable)
                 }
@@ -207,10 +211,11 @@ impl Interpreter {
             for (param, value) in fun.params().iter().zip(args) {
                 interpreter
                     .environment
-                    .define(param.token_type().to_string(), value.clone());
+                    .define(param.lexeme(), value.clone());
             }
 
             match interpreter.eval(&fun.body()) {
+                Err(Error::Runtime(RuntimeError::Return(value))) => Ok(value),
                 Err(_) => Err(RuntimeError::GenericError), // TODO mostrar o erro corretamente
                 _ => Ok(Value::Null),
             }
@@ -290,6 +295,13 @@ impl Interpreter {
                 );
                 Ok(())
             }
+            Return(expr) => Err(Error::Runtime(RuntimeError::Return(
+                if let Some(expr) = expr {
+                    self.eval_expr(expr)?
+                } else {
+                    Value::Null
+                },
+            ))),
         }
     }
 
