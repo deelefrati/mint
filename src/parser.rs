@@ -101,30 +101,25 @@ impl<'a> Parser<'a> {
         let mut params = vec![];
         self.consume(LeftParen)?;
         if self.next_is(single(RightParen)).is_none() {
-            params.push(self.consume(Identifier)?);
+            let param_id = self.consume(Identifier)?;
             self.consume(Colon)?;
-            if self
-                .next_is(|tt| match tt {
-                    Num => Some(VarType::Number),
-                    Str => Some(VarType::String),
-                    Bool => Some(VarType::Boolean),
-                    _ => None,
-                })
-                .is_some()
-            {
+            if let Some((var_type, _)) = self.next_is(|tt| match tt {
+                Num => Some(VarType::Number),
+                Str => Some(VarType::String),
+                Bool => Some(VarType::Boolean),
+                _ => None,
+            }) {
+                params.push((param_id, var_type));
                 while self.next_is(single(Comma)).is_some() {
-                    params.push(self.consume(Identifier)?);
+                    let param_id = self.consume(Identifier)?;
                     self.consume(Colon)?;
-                    if self
-                        .next_is(|tt| match tt {
-                            Num => Some(VarType::Number),
-                            Str => Some(VarType::String),
-                            Bool => Some(VarType::Boolean),
-                            _ => None,
-                        })
-                        .is_some()
-                    {
-                        continue; // TODO
+                    if let Some((var_type, _)) = self.next_is(|tt| match tt {
+                        Num => Some(VarType::Number),
+                        Str => Some(VarType::String),
+                        Bool => Some(VarType::Boolean),
+                        _ => None,
+                    }) {
+                        params.push((param_id, var_type));
                     } else {
                         return Err(ParserError::TypeNotDefined(self.current_line));
                     }
@@ -134,8 +129,27 @@ impl<'a> Parser<'a> {
             }
             self.consume(RightParen)?;
         }
+        let mut return_type = VarType::Null;
+        if self.next_is(single(Colon)).is_some() {
+            if let Some((var_type, _)) = self.next_is(|tt| match tt {
+                Num => Some(VarType::Number),
+                Str => Some(VarType::String),
+                Bool => Some(VarType::Boolean),
+                Null => Some(VarType::Null),
+                _ => None,
+            }) {
+                return_type = var_type;
+            } else {
+                return Err(ParserError::ReturnTypeExpected(self.current_line));
+            }
+        }
         self.consume(LeftBrace)?;
-        Ok(Stmt::Function(identifier, params, self.block()?.into()))
+        Ok(Stmt::Function(
+            identifier,
+            params,
+            self.list_statements()?,
+            return_type,
+        ))
     }
 
     fn if_statement(&mut self) -> Result<Stmt, ParserError> {
@@ -143,12 +157,12 @@ impl<'a> Parser<'a> {
         let cond = self.expression()?;
         self.consume(RightParen)?;
         let then = vec![self.statement()?];
-        let r#else = if self.next_is(single(Else)).is_some() {
+        let else_ = if self.next_is(single(Else)).is_some() {
             vec![self.statement()?]
         } else {
             vec![]
         };
-        Ok(Stmt::IfStmt(cond, then, r#else))
+        Ok(Stmt::IfStmt(cond, then, else_))
     }
     fn var_declaration(&mut self) -> Result<Stmt, ParserError> {
         let identifier = self.consume(Identifier)?;
@@ -385,6 +399,7 @@ impl<'a> Parser<'a> {
                 return Ok(token);
             }
         }
+        //println!("{:?}", self.tokens.first());
         Err(ParserError::Missing(self.current_line, tt))
     }
 }

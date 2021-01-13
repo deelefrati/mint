@@ -208,17 +208,20 @@ impl Interpreter {
     pub fn eval_func(&mut self, fun: &Callable, args: &[Value]) -> Result<Value, RuntimeError> {
         let old = std::mem::replace(&mut self.environment, fun.env().clone());
         let result = self.with_new_env(|interpreter| {
-            for (param, value) in fun.params().iter().zip(args) {
+            for ((param, _), value) in fun.params().iter().zip(args) {
                 interpreter
                     .environment
                     .define(param.lexeme(), value.clone());
             }
 
-            match interpreter.eval(&fun.body()) {
-                Err(Error::Runtime(RuntimeError::Return(value))) => Ok(value),
-                Err(_) => Err(RuntimeError::GenericError), // TODO mostrar o erro corretamente
-                _ => Ok(Value::Null),
+            for stmt in fun.body() {
+                match interpreter.eval(&stmt) {
+                    Err(Error::Runtime(RuntimeError::Return(value))) => return Ok(value),
+                    Err(_) => return Err(RuntimeError::GenericError), // TODO mostrar o erro corretamente
+                    _ => {}
+                }
             }
+            Ok(Value::Null)
         });
         self.environment = old;
         result
@@ -266,7 +269,7 @@ impl Interpreter {
                 }
                 Ok(())
             }),
-            IfStmt(cond, then, r#else) => match self.eval_expr(cond) {
+            IfStmt(cond, then, else_) => match self.eval_expr(cond) {
                 Ok(val) => match val.to_bool() {
                     true => {
                         for then in then {
@@ -275,15 +278,15 @@ impl Interpreter {
                         Ok(())
                     }
                     false => {
-                        for r#else in r#else {
-                            self.eval(r#else)?;
+                        for else_ in else_ {
+                            self.eval(else_)?;
                         }
                         Ok(())
                     }
                 },
                 Err(e) => Err(Error::Runtime(e)),
             },
-            Function(token, params, body) => {
+            Function(token, params, body, return_type) => {
                 self.environment.define(
                     token.lexeme(),
                     Value::new_function(
@@ -291,6 +294,7 @@ impl Interpreter {
                         token.clone(),
                         params.clone(),
                         body.clone(),
+                        *return_type,
                     ),
                 );
                 Ok(())

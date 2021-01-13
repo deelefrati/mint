@@ -13,6 +13,7 @@ impl std::fmt::Display for Type {
             Type::Num => write!(f, "Number"),
             Type::Bool => write!(f, "Boolean"),
             Type::Str => write!(f, "String"),
+            Type::Fun => write!(f, "Function"),
         }
     }
 }
@@ -22,7 +23,9 @@ pub enum Type {
     Bool,
     Null,
     Str,
+    Fun,
 }
+
 pub struct SemanticAnalyzer<'a> {
     types: HashMap<&'a Expr, Type>,
     symbol_table: Vec<HashMap<String, Type>>,
@@ -102,7 +105,7 @@ impl<'a> SemanticAnalyzer<'a> {
                         }
                     }
                 }),
-                Stmt::IfStmt(cond, then, r#else) => {
+                Stmt::IfStmt(cond, then, else_) => {
                     match self.analyze_one(&cond) {
                         Ok(t) => self.insert(&cond, t),
                         Err(semantic_error) => self.errors.push(Error::Semantic(semantic_error)),
@@ -115,15 +118,42 @@ impl<'a> SemanticAnalyzer<'a> {
                         }
                     });
                     self.with_new_env(|analyzer| {
-                        if let Err(nested_errors) = analyzer.analyze(r#else) {
+                        if let Err(nested_errors) = analyzer.analyze(else_) {
                             for err in nested_errors {
                                 analyzer.errors.push(err);
                             }
                         }
                     });
                 }
-                Stmt::Function(_, _, _) => {}
-                Stmt::Return(_) => {}
+                Stmt::Function(token, params, body, _return_type) => {
+                    if let Err(err) = self.insert_var(&token.lexeme(), Type::Fun) {
+                        self.errors.push(err)
+                    }
+                    self.with_new_env(|analyzer| {
+                        for (param, type_) in params {
+                            if let Err(err) = analyzer.insert_var(
+                                // TODO arrumar o into
+                                &param.lexeme(),
+                                match type_ {
+                                    VarType::Number => Type::Num,
+                                    VarType::String => Type::Str,
+                                    VarType::Boolean => Type::Bool,
+                                    VarType::Null => Type::Null,
+                                },
+                            ) {
+                                analyzer.errors.push(err);
+                            }
+                        }
+                        if let Err(nested_errors) = analyzer.analyze(body) {
+                            for err in nested_errors {
+                                analyzer.errors.push(err);
+                            }
+                        }
+                    })
+                }
+                Stmt::Return(expr) => {
+                    println!("{:?}", expr);
+                }
             }
         }
         if self.errors.is_empty() {

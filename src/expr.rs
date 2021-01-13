@@ -3,10 +3,9 @@ use crate::error::RuntimeError;
 use crate::interpreter::Interpreter;
 use crate::stmt::Stmt;
 use crate::token::Token;
+use crate::token_type::VarType;
 use std::hash::{Hash, Hasher};
 use std::ptr::hash;
-use std::rc::Rc;
-
 pub type OpWithToken<Op> = (Op, Token);
 
 impl std::fmt::Display for UnaryOp {
@@ -117,14 +116,16 @@ impl Value {
     pub fn new_function(
         env: Environment,
         name: Token,
-        params: Vec<Token>,
-        body: Rc<Stmt>,
+        params: Vec<(Token, VarType)>,
+        body: Vec<Stmt>,
+        return_type: VarType,
     ) -> Value {
         Value::Fun(Callable {
             env,
             name,
             params,
             body,
+            return_type,
         })
     }
 }
@@ -156,8 +157,9 @@ impl Eq for &Expr {}
 pub struct Callable {
     env: Environment,
     name: Token,
-    params: Vec<Token>,
-    body: Rc<Stmt>,
+    params: Vec<(Token, VarType)>,
+    body: Vec<Stmt>,
+    return_type: VarType,
 }
 
 impl Callable {
@@ -177,11 +179,11 @@ impl Callable {
         &self.env
     }
 
-    pub fn params(&self) -> &Vec<Token> {
+    pub fn params(&self) -> &Vec<(Token, VarType)> {
         &self.params
     }
 
-    pub fn body(&self) -> &Rc<Stmt> {
+    pub fn body(&self) -> &Vec<Stmt> {
         &self.body
     }
 }

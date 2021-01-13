@@ -50,6 +50,7 @@ pub enum ParserError {
     SemicolonExpected(usize),
     IdentifierExpected(usize),
     Expected(usize, TokenType),
+    ReturnTypeExpected(usize),
 }
 
 #[derive(Debug, PartialEq, Clone)]
@@ -345,6 +346,19 @@ impl Error {
                 ),
                 _ => "Não implementado".to_string(),
             },
+            ReturnTypeExpected(line) => format!(
+                "{}Syntax error in line {}: \n{}\n{} '{}'\n{}\n{} {}{}{}",
+                Color::White,
+                line,
+                self.blue_pipe(),
+                self.blue_pipe(),
+                source_vec.get(*line - 1).unwrap(),
+                self.blue_pipe(),
+                self.blue_pipe(),
+                Color::Yellow,
+                "Expected a return type",
+                Color::Reset,
+            ),
         }
     }
 
