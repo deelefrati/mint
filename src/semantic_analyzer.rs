@@ -13,19 +13,29 @@ impl std::fmt::Display for Type {
             Type::Num => write!(f, "Number"),
             Type::Bool => write!(f, "Boolean"),
             Type::Str => write!(f, "String"),
-            Type::Fun => write!(f, "Function"),
+            Type::Fun(_, _) => write!(f, "Function"),
         }
     }
 }
-#[derive(Debug, PartialEq, Clone, Copy)]
+#[derive(Debug, PartialEq, Clone)]
 pub enum Type {
     Num,
     Bool,
     Null,
     Str,
-    Fun,
+    Fun(Vec<VarType>, VarType),
 }
-
+impl std::convert::From<&VarType> for Type {
+    fn from(var_type: &VarType) -> Self {
+        match var_type {
+            VarType::Number => Type::Num,
+            VarType::Boolean => Type::Bool,
+            VarType::Null => Type::Null,
+            VarType::String => Type::Str,
+            VarType::Function => Type::Fun(Vec::default(), VarType::Null),
+        }
+    }
+}
 pub struct SemanticAnalyzer<'a> {
     types: HashMap<&'a Expr, Type>,
     symbol_table: Vec<HashMap<String, Type>>,
@@ -66,7 +76,8 @@ impl<'a> SemanticAnalyzer<'a> {
                     _ => {}
                 },
                 Stmt::VarStmt(var_name, var_type, expr) => match self.analyze_one(&expr) {
-                    Ok(t) => match (var_type, t) {
+                    Ok(t) => match (var_type, t.clone()) {
+                        // TODO esse clone ta certo?
                         (Some(VarType::Boolean), Type::Bool) => {
                             if let Err(error) = self.insert_var(var_name, Type::Bool) {
                                 self.errors.push(error);
@@ -125,8 +136,14 @@ impl<'a> SemanticAnalyzer<'a> {
                         }
                     });
                 }
-                Stmt::Function(token, params, body, _return_type) => {
-                    if let Err(err) = self.insert_var(&token.lexeme(), Type::Fun) {
+                Stmt::Function(token, params, body, return_type) => {
+                    let mut param_types = vec![];
+                    for (_, param_type) in params {
+                        param_types.push(*param_type);
+                    }
+                    if let Err(err) =
+                        self.insert_var(&token.lexeme(), Type::Fun(param_types, *return_type))
+                    {
                         self.errors.push(err)
                     }
                     self.with_new_env(|analyzer| {
@@ -134,12 +151,7 @@ impl<'a> SemanticAnalyzer<'a> {
                             if let Err(err) = analyzer.insert_var(
                                 // TODO arrumar o into
                                 &param.lexeme(),
-                                match type_ {
-                                    VarType::Number => Type::Num,
-                                    VarType::String => Type::Str,
-                                    VarType::Boolean => Type::Bool,
-                                    VarType::Null => Type::Null,
-                                },
+                                type_.into(),
                             ) {
                                 analyzer.errors.push(err);
                             }
@@ -151,8 +163,8 @@ impl<'a> SemanticAnalyzer<'a> {
                         }
                     })
                 }
-                Stmt::Return(expr) => {
-                    println!("{:?}", expr);
+                Stmt::Return(_expr) => {
+                    //println!("{:?}", expr);
                 }
             }
         }
@@ -176,6 +188,14 @@ impl<'a> SemanticAnalyzer<'a> {
             Ok(())
         }
     }
+    //fn get_var(&mut self, id: &str) -> Result<&Type, SemanticError> {
+    //    let last_env = self.symbol_table.last_mut().unwrap();
+    //    if let Some(fun) = last_env.get(id) {
+    //        Ok(fun)
+    //    } else {
+    //        Err(SemanticError::FunctionNotDeclared)
+    //    }
+    //}
 
     fn analyze_one(&mut self, expr: &Expr) -> Result<Type, SemanticError> {
         match expr {
@@ -186,7 +206,7 @@ impl<'a> SemanticAnalyzer<'a> {
             Expr::Grouping(expr) => self.analyze_one(expr),
             Expr::Literal((value, _)) => Ok(self.analyze_literal(value)),
             Expr::Variable(_, identifier) => self.analyze_var_expr(identifier),
-            Expr::Call(_, _) => Ok(Type::Null),
+            Expr::Call(callee, args) => self.analyze_call_expr(callee, args),
         }
     }
 
@@ -200,7 +220,7 @@ impl<'a> SemanticAnalyzer<'a> {
     fn analyze_var_expr(&mut self, identifier: &str) -> Result<Type, SemanticError> {
         for env in self.symbol_table.iter().rev() {
             if let Some(t) = env.get(identifier) {
-                return Ok(*t);
+                return Ok(t.clone());
             }
         }
 
@@ -323,7 +343,33 @@ impl<'a> SemanticAnalyzer<'a> {
             Value::Boolean(_) => Type::Bool,
             Value::Number(_) => Type::Num,
             Value::Str(_) => Type::Str,
-            Value::Fun(_) => Type::Null,
+            Value::Fun(fun) => Type::Fun(fun.params_types(), *fun.return_type()),
+        }
+    }
+
+    fn analyze_call_expr(&mut self, callee: &Expr, args: &[Expr]) -> Result<Type, SemanticError> {
+        if let Type::Fun(params_types, return_type) = self.analyze_one(callee)? {
+            if params_types.len() != args.len() {
+                return Err(SemanticError::ArityMismatch(params_types.len(), args.len()));
+            }
+
+            self.with_new_env(|analyzer| {
+                for (arg, param_var_type) in args.iter().zip(&params_types) {
+                    let arg_type = analyzer.analyze_one(arg)?;
+
+                    let arg_var_type: VarType = arg_type.clone().into();
+                    let param_type: Type = param_var_type.into();
+
+                    if arg_var_type != *param_var_type {
+                        return Err(SemanticError::MismatchedTypes(param_type, arg_type, None));
+                    }
+                }
+
+                Ok(())
+            })?;
+            Ok((&return_type).into())
+        } else {
+            Err(SemanticError::FunctionNotDeclared)
         }
     }
 }

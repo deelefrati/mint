@@ -1,11 +1,11 @@
-function foo(n: number) : number {
-  n = 1;
-  const a  = 2+ 1;
+function foo(n: number, s: string) : boolean{
+  n
+  const a  = 2 + 1;
 
-  return n === b;
+    return n === a;
 
 }
 
 const b = 10;
 
-foo(10)
+foo(3, "1")

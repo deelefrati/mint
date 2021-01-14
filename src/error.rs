@@ -63,6 +63,8 @@ pub enum SemanticError {
     IncompatibleDeclaration,
     VariableNotDeclared,
     VariableOverwrited,
+    FunctionNotDeclared,
+    ArityMismatch(usize, usize),
 }
 
 #[allow(dead_code)]
@@ -413,13 +415,14 @@ impl Error {
                     format!("{}Incompatible comparation: Cannot compare using the {}'{}'{} operator with {}{}{} and {}{}{}\n{}\n{} {}", Color::White, Color::Yellow, op, Color::White, Color::Yellow, l, Color::White, Color::Yellow, r, Color::Reset, self.blue_pipe(), self.blue_pipe(), note.as_ref().unwrap())
                 } else {
                     format!("{}Incompatible comparation: Cannot compare using the {}'{}'{} operator with {}{}{} and {}{}{}", Color::White, Color::Yellow, op, Color::White, Color::Yellow, l, Color::White, Color::Yellow, r, Color::Reset)
-
                 }
             }
             SemanticError::IncompatibleLogicOp(op, l, r) => format!("{}The {}'{}'{} operator expects the left and right expressions to be both of type {}{}{} or {}{}{}, but the expressions evaluates to {}{}{} and {}{}{} respectively.", Color::White, Color::Yellow, op, Color::White, Color::Yellow, Type::Bool, Color::White, Color::Yellow, Type::Null, Color::White, Color::Yellow, l, Color::White, Color::Yellow, r, Color::White),
             SemanticError::IncompatibleDeclaration => "The type is not compatible with de assignment".to_string(),
             SemanticError::VariableNotDeclared => "Variable not declared".to_string(), // TODO melhorar msg erro
-            SemanticError::VariableOverwrited => "Variable overwrited".to_string() // TODO melhorar msg erro
+            SemanticError::VariableOverwrited => "Variable overwrited".to_string(), // TODO melhorar msg erro
+            SemanticError::FunctionNotDeclared => "Function not declared".to_string(),
+            SemanticError::ArityMismatch(_expected, _found) => "Arity Mismatch".to_string(),            
         }
     }
 

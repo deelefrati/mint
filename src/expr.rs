@@ -152,7 +152,11 @@ impl Hash for &Expr {
 }
 
 impl Eq for &Expr {}
-
+impl std::fmt::Display for Callable {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        write!(f, "<function {}>", self.name.lexeme())
+    }
+}
 #[derive(PartialEq, Clone, Debug)]
 pub struct Callable {
     env: Environment,
@@ -170,6 +174,9 @@ impl Callable {
     ) -> Result<Value, RuntimeError> {
         interpreter.eval_func(self, args)
     }
+    pub fn name(&self) -> &Token {
+        &self.name
+    }
 
     pub fn arity(&self) -> usize {
         self.params.len()
@@ -185,5 +192,17 @@ impl Callable {
 
     pub fn body(&self) -> &Vec<Stmt> {
         &self.body
+    }
+
+    pub fn return_type(&self) -> &VarType {
+        &self.return_type
+    }
+
+    pub fn params_types(&self) -> Vec<VarType> {
+        let mut ret = vec![];
+        for (_, var_type) in &self.params {
+            ret.push(*var_type);
+        }
+        ret
     }
 }
