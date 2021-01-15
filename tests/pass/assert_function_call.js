@@ -7,7 +7,7 @@ const a =  3;
 foo()
 assert(a === 3);
 
-function fib(n: number) {
+function fib(n: number) : number {
     if (n <= 1) {
       return n;
     }

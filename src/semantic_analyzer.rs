@@ -137,6 +137,7 @@ impl<'a> SemanticAnalyzer<'a> {
                     });
                 }
                 Stmt::Function(token, params, body, return_type) => {
+                    println!("{:?}", return_type);
                     let mut param_types = vec![];
                     for (_, param_type) in params {
                         param_types.push(*param_type);
@@ -148,11 +149,7 @@ impl<'a> SemanticAnalyzer<'a> {
                     }
                     self.with_new_env(|analyzer| {
                         for (param, type_) in params {
-                            if let Err(err) = analyzer.insert_var(
-                                // TODO arrumar o into
-                                &param.lexeme(),
-                                type_.into(),
-                            ) {
+                            if let Err(err) = analyzer.insert_var(&param.lexeme(), type_.into()) {
                                 analyzer.errors.push(err);
                             }
                         }
@@ -163,14 +160,19 @@ impl<'a> SemanticAnalyzer<'a> {
                         }
                     })
                 }
-                Stmt::Return(_expr) => {
-                    //println!("{:?}", expr);
-                }
+                Stmt::Return(expr) => match expr {
+                    Some(expr) => match self.analyze_one(&expr) {
+                        Ok(t) => self.insert(&expr, t),
+                        Err(semantic_error) => self.errors.push(Error::Semantic(semantic_error)),
+                    },
+                    None => {}
+                },
             }
         }
         if self.errors.is_empty() {
             Ok(())
         } else {
+            println!("{:?}", self.errors.clone());
             Err(self.errors.clone())
         }
     }
@@ -188,14 +190,6 @@ impl<'a> SemanticAnalyzer<'a> {
             Ok(())
         }
     }
-    //fn get_var(&mut self, id: &str) -> Result<&Type, SemanticError> {
-    //    let last_env = self.symbol_table.last_mut().unwrap();
-    //    if let Some(fun) = last_env.get(id) {
-    //        Ok(fun)
-    //    } else {
-    //        Err(SemanticError::FunctionNotDeclared)
-    //    }
-    //}
 
     fn analyze_one(&mut self, expr: &Expr) -> Result<Type, SemanticError> {
         match expr {

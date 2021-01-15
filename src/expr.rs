@@ -108,7 +108,7 @@ impl Value {
     pub fn to_bool(&self) -> bool {
         match self {
             Value::Null | Value::Boolean(false) => false,
-            Value::Number(n) => *n <= f64::EPSILON,
+            Value::Number(n) => !(*n <= f64::EPSILON),
             _ => true,
         }
     }
