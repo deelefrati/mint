@@ -1,5 +1,5 @@
 use crate::{
-    error::{Error, ParserError},
+    error::{parser::ParserError, Error},
     expr::*,
     stmt::Stmt,
     token::Token,
@@ -153,6 +153,7 @@ impl<'a> Parser<'a> {
     }
 
     fn if_statement(&mut self) -> Result<Stmt, ParserError> {
+        println!("aaa");
         self.consume(LeftParen)?;
         let cond = self.expression()?;
         self.consume(RightParen)?;
@@ -399,7 +400,6 @@ impl<'a> Parser<'a> {
                 return Ok(token);
             }
         }
-        //println!("{:?}", self.tokens.first());
         Err(ParserError::Missing(self.current_line, tt))
     }
 }

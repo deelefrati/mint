@@ -1,5 +1,5 @@
 use crate::environment::Environment;
-use crate::error::RuntimeError;
+use crate::error::runtime::RuntimeError;
 use crate::interpreter::Interpreter;
 use crate::stmt::Stmt;
 use crate::token::Token;
@@ -108,7 +108,7 @@ impl Value {
     pub fn to_bool(&self) -> bool {
         match self {
             Value::Null | Value::Boolean(false) => false,
-            Value::Number(n) => !(*n <= f64::EPSILON),
+            Value::Number(n) => *n >= f64::EPSILON,
             _ => true,
         }
     }
@@ -155,6 +155,61 @@ impl Eq for &Expr {}
 impl std::fmt::Display for Callable {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         write!(f, "<function {}>", self.name.lexeme())
+    }
+}
+
+impl Expr {
+    pub fn get_token(&self) -> &Token {
+        match self {
+            Expr::Arithmetic(_, op_and_token, _) => &op_and_token.1,
+            Expr::Comparation(_, op_and_token, _) => &op_and_token.1,
+            Expr::Logical(_, op_and_token, _) => &op_and_token.1,
+            Expr::Unary(op_and_token, _) => &op_and_token.1,
+            Expr::Grouping(expr) => expr.get_token(),
+            Expr::Literal(op_and_token) => &op_and_token.1,
+            Expr::Variable(token, _) => &token,
+            Expr::Call(callee, _) => callee.get_token(),
+        }
+    }
+
+    pub fn get_expr_placement(&self) -> (usize, usize) {
+        match self {
+            Expr::Arithmetic(l, _, r) => (l.get_expr_placement().0, r.get_expr_placement().1),
+            Expr::Comparation(l, _, r) => (l.get_expr_placement().0, r.get_expr_placement().1),
+            Expr::Logical(l, _, r) => (l.get_expr_placement().0, r.get_expr_placement().1),
+            Expr::Unary(_, r) => {
+                let (x, y) = r.get_expr_placement();
+                (x - 1, y)
+            }
+            Expr::Grouping(expr) => {
+                let (x, y) = expr.get_expr_placement();
+                (x - 1, y + 1)
+            }
+            Expr::Literal(op_and_token) => (op_and_token.1.starts_at(), op_and_token.1.ends_at()),
+            Expr::Variable(token, _) => (token.starts_at(), token.ends_at()),
+            Expr::Call(callee, params) => {
+                let (x, mut y) = callee.get_expr_placement();
+
+                if !params.is_empty() {
+                    let (_, new_y) = params.last().unwrap().get_expr_placement();
+
+                    y = new_y;
+                } else {
+                    y += 1;
+                }
+
+                (x, y + 1)
+            }
+        }
+    }
+
+    pub fn get_line(&self) -> usize {
+        self.get_token().line()
+    }
+
+    pub fn placement(&self) -> (usize, usize, usize) {
+        let (x, y) = self.get_expr_placement();
+        (self.get_line(), x, y)
     }
 }
 #[derive(PartialEq, Clone, Debug)]

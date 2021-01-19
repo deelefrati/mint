@@ -1,8 +1,9 @@
 use crate::{
     environment::Environment,
-    error::{Error, RuntimeError},
+    error::{runtime::RuntimeError, Error},
     expr::*,
     stmt::*,
+    token::Token,
 };
 use std::collections::HashMap;
 
@@ -165,11 +166,15 @@ impl Interpreter {
         Ok(result)
     }
 
-    fn eval_var_expr(&self, identifier: &str) -> InterpreterResult {
+    fn eval_var_expr(&self, identifier: &str, token: &Token) -> InterpreterResult {
         if let Some(value) = self.environment.get(identifier) {
             Ok(value)
         } else {
-            Err(RuntimeError::VariableNotDeclared)
+            Err(RuntimeError::VariableNotDeclared(
+                token.line(),
+                token.starts_at(),
+                token.ends_at(),
+            ))
         }
     }
 
@@ -185,7 +190,7 @@ impl Interpreter {
             Logical(left, op_and_token, right) => self.eval_logical_expr(left, op_and_token, right),
             Unary(op_and_token, right) => self.eval_unary_expr(op_and_token, right),
             Grouping(new_expr) => self.eval_expr(new_expr),
-            Variable(_, identifier) => self.eval_var_expr(identifier),
+            Variable(token, identifier) => self.eval_var_expr(identifier, token),
             Literal(value_and_token) => Ok(value_and_token.clone().0),
             Call(callee, params) => {
                 if let Value::Fun(fun) = self.eval_expr(callee)? {
@@ -196,10 +201,18 @@ impl Interpreter {
                         }
                         fun.call(self, args.as_slice())
                     } else {
-                        Err(RuntimeError::ArityMismatch(fun.arity(), params.len()))
+                        let (line, starts_at, ends_at) = expr.placement();
+                        Err(RuntimeError::ArityMismatch(
+                            line,
+                            starts_at,
+                            ends_at,
+                            fun.arity(),
+                            params.len(),
+                        ))
                     }
                 } else {
-                    Err(RuntimeError::NotCallable)
+                    let (line, starts_at, ends_at) = callee.placement();
+                    Err(RuntimeError::NotCallable(line, starts_at, ends_at))
                 }
             }
         }
@@ -216,9 +229,9 @@ impl Interpreter {
 
             for stmt in fun.body() {
                 match interpreter.eval(&stmt) {
-                    Err(Error::Runtime(RuntimeError::Return(value))) => return Ok(value),
-                    Err(_) => return Err(RuntimeError::GenericError), // TODO mostrar o erro corretamente
-                    _ => {}
+                    Err(RuntimeError::Return(value)) => return Ok(value),
+                    Err(err) => return Err(err),
+                    Ok(()) => {}
                 }
             }
             Ok(Value::Null)
@@ -241,7 +254,7 @@ impl Interpreter {
         result
     }
 
-    fn eval(&mut self, stmt: &Stmt) -> Result<(), Error> {
+    fn eval(&mut self, stmt: &Stmt) -> Result<(), RuntimeError> {
         use Stmt::*;
         match stmt {
             ExprStmt(expr) => match self.eval_expr(expr) {
@@ -249,16 +262,19 @@ impl Interpreter {
                     println!("{}", value);
                     Ok(())
                 }
-                Err(e) => Err(Error::Runtime(e)),
+                Err(err) => Err(err),
             },
             AssertStmt(expr) => match self.eval_expr(expr) {
                 Ok(Value::Boolean(true)) => Ok(()),
-                Ok(_) => Err(Error::Runtime(RuntimeError::AssertionFailed)),
-                Err(error) => Err(Error::Runtime(error)),
+                Ok(_) => {
+                    let (line, starts_at, ends_at) = expr.placement();
+                    Err(RuntimeError::AssertionFailed(line, starts_at, ends_at))
+                }
+                Err(err) => Err(err),
             },
             VarStmt(identifier, _, expr) => match self.eval_var_stmt(identifier, expr) {
                 Ok(_) => Ok(()),
-                Err(error) => Err(Error::Runtime(error)),
+                Err(err) => Err(err),
             },
             Block(stmts) => self.with_new_env(|interpreter| {
                 for stmt in stmts {
@@ -284,7 +300,7 @@ impl Interpreter {
                         Ok(())
                     }
                 },
-                Err(e) => Err(Error::Runtime(e)),
+                Err(err) => Err(err),
             },
             Function(token, params, body, return_type) => {
                 self.environment.define(
@@ -299,13 +315,11 @@ impl Interpreter {
                 );
                 Ok(())
             }
-            Return(expr) => Err(Error::Runtime(RuntimeError::Return(
-                if let Some(expr) = expr {
-                    self.eval_expr(expr)?
-                } else {
-                    Value::Null
-                },
-            ))),
+            Return(expr) => Err(RuntimeError::Return(if let Some(expr) = expr {
+                self.eval_expr(expr)?
+            } else {
+                Value::Null
+            })),
         }
     }
 
@@ -314,7 +328,7 @@ impl Interpreter {
         self.environment = Environment::new(global);
         for stmt in stmts {
             if let Err(error) = self.eval(stmt) {
-                return Some(error);
+                return Some(Error::Runtime(error));
             }
         }
         None

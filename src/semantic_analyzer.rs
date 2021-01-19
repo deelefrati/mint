@@ -1,7 +1,8 @@
 use crate::{
-    error::{Error, SemanticError},
+    error::{semantic::SemanticError, Error},
     expr::*,
     stmt::Stmt,
+    token::Token,
     token_type::VarType,
 };
 use std::collections::HashMap;
@@ -65,11 +66,14 @@ impl<'a> SemanticAnalyzer<'a> {
                 },
                 Stmt::AssertStmt(expr) => match self.analyze_one(&expr) {
                     Ok(t) if t != Type::Bool => {
+                        let (line, starts_at, ends_at) = expr.placement();
                         self.errors
                             .push(Error::Semantic(SemanticError::MismatchedTypes(
+                                line,
+                                starts_at,
+                                ends_at,
                                 Type::Bool,
                                 t,
-                                None,
                             )))
                     }
                     Err(error) => self.errors.push(Error::Semantic(error)),
@@ -79,33 +83,78 @@ impl<'a> SemanticAnalyzer<'a> {
                     Ok(t) => match (var_type, t.clone()) {
                         // TODO esse clone ta certo?
                         (Some(VarType::Boolean), Type::Bool) => {
-                            if let Err(error) = self.insert_var(var_name, Type::Bool) {
-                                self.errors.push(error);
+                            if self.insert_var(var_name, Type::Bool).is_some() {
+                                let (line, starts_at, ends_at) = expr.placement();
+                                self.errors.push(Error::Semantic(
+                                    SemanticError::VariableOverwrited(
+                                        line,
+                                        starts_at,
+                                        ends_at,
+                                        var_name.clone(),
+                                    ),
+                                ));
                             }
                         }
                         (Some(VarType::String), Type::Str) => {
-                            if let Err(error) = self.insert_var(var_name, Type::Str) {
-                                self.errors.push(error);
+                            if self.insert_var(var_name, Type::Str).is_some() {
+                                let (line, starts_at, ends_at) = expr.placement();
+                                self.errors.push(Error::Semantic(
+                                    SemanticError::VariableOverwrited(
+                                        line,
+                                        starts_at,
+                                        ends_at,
+                                        var_name.clone(),
+                                    ),
+                                ));
                             }
                         }
                         (Some(VarType::Number), Type::Num) => {
-                            if let Err(error) = self.insert_var(var_name, Type::Num) {
-                                self.errors.push(error);
+                            if self.insert_var(var_name, Type::Num).is_some() {
+                                let (line, starts_at, ends_at) = expr.placement();
+                                self.errors.push(Error::Semantic(
+                                    SemanticError::VariableOverwrited(
+                                        line,
+                                        starts_at,
+                                        ends_at,
+                                        var_name.clone(),
+                                    ),
+                                ));
                             }
                         }
                         (Some(VarType::Null), Type::Null) => {
-                            if let Err(error) = self.insert_var(var_name, Type::Null) {
-                                self.errors.push(error);
+                            if self.insert_var(var_name, Type::Null).is_some() {
+                                let (line, starts_at, ends_at) = expr.placement();
+                                self.errors.push(Error::Semantic(
+                                    SemanticError::VariableOverwrited(
+                                        line,
+                                        starts_at,
+                                        ends_at,
+                                        var_name.clone(),
+                                    ),
+                                ));
                             }
                         }
                         (None, _) => {
-                            if let Err(error) = self.insert_var(var_name, t) {
-                                self.errors.push(error);
+                            if self.insert_var(var_name, t).is_some() {
+                                let (line, starts_at, ends_at) = expr.placement();
+                                self.errors.push(Error::Semantic(
+                                    SemanticError::VariableOverwrited(
+                                        line,
+                                        starts_at,
+                                        ends_at,
+                                        var_name.clone(),
+                                    ),
+                                ));
                             }
                         }
-                        _ => self
-                            .errors
-                            .push(Error::Semantic(SemanticError::IncompatibleDeclaration)),
+                        (Some(expected), found) => {
+                            let (line, starts_at, ends_at) = expr.placement();
+                            self.errors.push(Error::Semantic(
+                                SemanticError::IncompatibleDeclaration(
+                                    line, starts_at, ends_at, *expected, found,
+                                ),
+                            ))
+                        }
                     },
                     Err(semantic_error) => self.errors.push(Error::Semantic(semantic_error)),
                 },
@@ -137,20 +186,30 @@ impl<'a> SemanticAnalyzer<'a> {
                     });
                 }
                 Stmt::Function(token, params, body, return_type) => {
-                    println!("{:?}", return_type);
-                    let mut param_types = vec![];
-                    for (_, param_type) in params {
-                        param_types.push(*param_type);
-                    }
-                    if let Err(err) =
-                        self.insert_var(&token.lexeme(), Type::Fun(param_types, *return_type))
+                    let param_types = params.iter().map(|&(_, param_type)| param_type).collect();
+                    if self
+                        .insert_var(&token.lexeme(), Type::Fun(param_types, *return_type))
+                        .is_some()
                     {
-                        self.errors.push(err)
+                        self.errors
+                            .push(Error::Semantic(SemanticError::VariableOverwrited(
+                                token.line(),
+                                token.starts_at(),
+                                token.ends_at(),
+                                token.lexeme(),
+                            )))
                     }
                     self.with_new_env(|analyzer| {
                         for (param, type_) in params {
-                            if let Err(err) = analyzer.insert_var(&param.lexeme(), type_.into()) {
-                                analyzer.errors.push(err);
+                            if analyzer.insert_var(&param.lexeme(), type_.into()).is_some() {
+                                analyzer.errors.push(Error::Semantic(
+                                    SemanticError::VariableOverwrited(
+                                        param.line(),
+                                        param.starts_at(),
+                                        param.ends_at(),
+                                        param.lexeme(),
+                                    ),
+                                ));
                             }
                         }
                         if let Err(nested_errors) = analyzer.analyze(body) {
@@ -181,26 +240,26 @@ impl<'a> SemanticAnalyzer<'a> {
         self.types.insert(expr, t);
     }
 
-    fn insert_var(&mut self, id: &str, t: Type) -> Result<(), Error> {
+    fn insert_var(&mut self, id: &str, t: Type) -> Option<()> {
         let last_env = self.symbol_table.last_mut().unwrap();
         if last_env.contains_key(id) {
-            Err(Error::Semantic(SemanticError::VariableOverwrited))
+            Some(())
         } else {
             last_env.insert(id.to_string(), t);
-            Ok(())
+            None
         }
     }
 
     fn analyze_one(&mut self, expr: &Expr) -> Result<Type, SemanticError> {
         match expr {
-            Expr::Arithmetic(a, (op, _), b) => self.analyze_arith(a, op, b),
-            Expr::Comparation(a, (op, _), b) => self.analyze_comp(a, op, b),
-            Expr::Logical(a, (op, _), b) => self.analyze_logical(a, op, b),
-            Expr::Unary((op, _), a) => self.analyze_unary(op, a),
+            Expr::Arithmetic(a, (op, _), b) => self.analyze_arith(a, op, b, expr),
+            Expr::Comparation(a, (op, _), b) => self.analyze_comp(a, op, b, expr),
+            Expr::Logical(a, (op, _), b) => self.analyze_logical(a, op, b, expr),
+            Expr::Unary((op, _), a) => self.analyze_unary(op, a, expr),
             Expr::Grouping(expr) => self.analyze_one(expr),
             Expr::Literal((value, _)) => Ok(self.analyze_literal(value)),
-            Expr::Variable(_, identifier) => self.analyze_var_expr(identifier),
-            Expr::Call(callee, args) => self.analyze_call_expr(callee, args),
+            Expr::Variable(token, identifier) => self.analyze_var_expr(token, identifier),
+            Expr::Call(callee, args) => self.analyze_call_expr(callee, args, expr),
         }
     }
 
@@ -211,25 +270,39 @@ impl<'a> SemanticAnalyzer<'a> {
         result
     }
 
-    fn analyze_var_expr(&mut self, identifier: &str) -> Result<Type, SemanticError> {
+    fn analyze_var_expr(&mut self, token: &Token, identifier: &str) -> Result<Type, SemanticError> {
         for env in self.symbol_table.iter().rev() {
             if let Some(t) = env.get(identifier) {
                 return Ok(t.clone());
             }
         }
-
-        Err(SemanticError::VariableNotDeclared)
+        Err(SemanticError::VariableNotDeclared(
+            token.line(),
+            token.starts_at(),
+            token.ends_at(),
+            token.lexeme(),
+        ))
     }
 
-    fn analyze_unary(&mut self, op: &UnaryOp, exp: &Expr) -> Result<Type, SemanticError> {
+    fn analyze_unary(
+        &mut self,
+        op: &UnaryOp,
+        expr: &Expr,
+        original_expr: &Expr,
+    ) -> Result<Type, SemanticError> {
         use UnaryOp::*;
-        let exp_type = self.analyze_one(exp)?;
+        let expr_type = self.analyze_one(expr)?;
 
-        let t = match (op, exp_type) {
+        let t = match (op, expr_type) {
             (Bang, Type::Bool) => Type::Bool,
             (Minus, Type::Num) => Type::Num,
             (Plus, Type::Num) => Type::Num,
-            (op, t) => return Err(SemanticError::IncompatibleUnaryOp(*op, t)),
+            (op, t) => {
+                let (line, starts_at, ends_at) = original_expr.placement();
+                return Err(SemanticError::IncompatibleUnaryOp(
+                    line, starts_at, ends_at, *op, t,
+                ));
+            }
         };
         Ok(t)
     }
@@ -239,6 +312,7 @@ impl<'a> SemanticAnalyzer<'a> {
         a: &Expr,
         op: &ArithmeticOp,
         b: &Expr,
+        original_expr: &Expr,
     ) -> Result<Type, SemanticError> {
         use ArithmeticOp::*;
 
@@ -257,7 +331,12 @@ impl<'a> SemanticAnalyzer<'a> {
 
             (Mod, Type::Num, Type::Num) => Type::Num,
 
-            (op, left, right) => return Err(SemanticError::IncompatibleArith(*op, left, right)),
+            (op, left, right) => {
+                let (line, starts_at, ends_at) = original_expr.placement();
+                return Err(SemanticError::IncompatibleArith(
+                    line, starts_at, ends_at, *op, left, right,
+                ));
+            }
         };
 
         Ok(expr_type)
@@ -268,6 +347,7 @@ impl<'a> SemanticAnalyzer<'a> {
         a: &Expr,
         op: &LogicalOp,
         b: &Expr,
+        original_expr: &Expr,
     ) -> Result<Type, SemanticError> {
         use LogicalOp::*;
 
@@ -278,7 +358,12 @@ impl<'a> SemanticAnalyzer<'a> {
             (And, Type::Bool, Type::Bool) => Type::Bool,
             (Or, Type::Bool, Type::Bool) => Type::Bool,
 
-            (op, left, right) => return Err(SemanticError::IncompatibleLogicOp(*op, left, right)),
+            (op, left, right) => {
+                let (line, starts_at, ends_at) = original_expr.placement();
+                return Err(SemanticError::IncompatibleLogicOp(
+                    line, starts_at, ends_at, *op, left, right,
+                ));
+            }
         };
 
         Ok(expr_type)
@@ -289,6 +374,7 @@ impl<'a> SemanticAnalyzer<'a> {
         a: &Expr,
         op: &ComparationOp,
         b: &Expr,
+        original_expr: &Expr,
     ) -> Result<Type, SemanticError> {
         use ComparationOp::*;
         let type_a = self.analyze_one(a)?;
@@ -323,9 +409,10 @@ impl<'a> SemanticAnalyzer<'a> {
             (GreaterEqual, Type::Str, Type::Str) => Type::Bool,
 
             (op, left, right) => {
+                let (line, starts_at, ends_at) = original_expr.placement();
                 return Err(SemanticError::IncompatibleComparation(
-                    *op, left, right, None,
-                ))
+                    line, starts_at, ends_at, *op, left, right,
+                ));
             }
         };
         Ok(expr_type)
@@ -341,10 +428,22 @@ impl<'a> SemanticAnalyzer<'a> {
         }
     }
 
-    fn analyze_call_expr(&mut self, callee: &Expr, args: &[Expr]) -> Result<Type, SemanticError> {
+    fn analyze_call_expr(
+        &mut self,
+        callee: &Expr,
+        args: &[Expr],
+        original_expr: &Expr,
+    ) -> Result<Type, SemanticError> {
         if let Type::Fun(params_types, return_type) = self.analyze_one(callee)? {
             if params_types.len() != args.len() {
-                return Err(SemanticError::ArityMismatch(params_types.len(), args.len()));
+                let (line, starts_at, ends_at) = original_expr.placement();
+                return Err(SemanticError::ArityMismatch(
+                    line,
+                    starts_at,
+                    ends_at,
+                    params_types.len(),
+                    args.len(),
+                ));
             }
 
             self.with_new_env(|analyzer| {
@@ -355,7 +454,11 @@ impl<'a> SemanticAnalyzer<'a> {
                     let param_type: Type = param_var_type.into();
 
                     if arg_var_type != *param_var_type {
-                        return Err(SemanticError::MismatchedTypes(param_type, arg_type, None));
+                        let (line, (starts_at, ends_at)) =
+                            (arg.get_line(), arg.get_expr_placement());
+                        return Err(SemanticError::MismatchedTypes(
+                            line, starts_at, ends_at, param_type, arg_type,
+                        ));
                     }
                 }
 
@@ -363,7 +466,8 @@ impl<'a> SemanticAnalyzer<'a> {
             })?;
             Ok((&return_type).into())
         } else {
-            Err(SemanticError::FunctionNotDeclared)
+            let (line, starts_at, ends_at) = callee.placement();
+            Err(SemanticError::FunctionNotDeclared(line, starts_at, ends_at))
         }
     }
 }

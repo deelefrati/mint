@@ -1,10 +1,12 @@
-use crate::expr::Value;
-use crate::semantic_analyzer::Type;
+pub mod parser;
+pub mod runtime;
+pub mod scanner;
+pub mod semantic;
 
-use crate::{
-    expr::{ArithmeticOp, ComparationOp, LogicalOp, UnaryOp},
-    token_type::TokenType,
-};
+use parser::ParserError;
+use runtime::RuntimeError;
+use scanner::ScannerError;
+use semantic::SemanticError;
 
 #[derive(Debug, PartialEq, Clone)]
 pub enum Error {
@@ -15,60 +17,15 @@ pub enum Error {
     Runtime(RuntimeError),
     Unexpected,
 }
+
 impl From<RuntimeError> for Error {
     fn from(err: RuntimeError) -> Self {
         Error::Runtime(err)
     }
 }
-#[derive(Debug, PartialEq, Clone)]
-pub enum RuntimeError {
-    GenericError,
-    DivisionByZero(usize, usize, usize),
-    AssertionFailed,
-    VariableNotDeclared,
-    NotCallable,
-    ArityMismatch(usize, usize),
-    Return(Value),
-}
-
-#[derive(Debug, PartialEq, Clone)]
-pub enum ScannerError {
-    InvalidToken(usize, TokenType, usize, usize),
-    InvalidNumber(usize, TokenType, usize, usize),
-    InvalidString(usize, usize, usize),
-    UnterminatedString(usize),
-}
-
-#[derive(Debug, PartialEq, Clone)]
-pub enum ParserError {
-    Missing(usize, TokenType),
-    MissingExpression(usize),
-    // declaration of variables errors
-    AssignmentExpected(usize),
-    TypeNotDefined(usize),
-    ColonExpected(usize),
-    SemicolonExpected(usize),
-    IdentifierExpected(usize),
-    Expected(usize, TokenType),
-    ReturnTypeExpected(usize),
-}
-
-#[derive(Debug, PartialEq, Clone)]
-pub enum SemanticError {
-    MismatchedTypes(Type, Type, Option<String>),
-    IncompatibleArith(ArithmeticOp, Type, Type),
-    IncompatibleComparation(ComparationOp, Type, Type, Option<String>),
-    IncompatibleLogicOp(LogicalOp, Type, Type),
-    IncompatibleUnaryOp(UnaryOp, Type),
-    IncompatibleDeclaration,
-    VariableNotDeclared,
-    VariableOverwrited,
-    FunctionNotDeclared,
-    ArityMismatch(usize, usize),
-}
 
 #[allow(dead_code)]
-enum Color {
+pub enum Color {
     Reset,
     White,
     Red,
@@ -92,10 +49,6 @@ impl std::fmt::Display for Color {
 }
 
 impl Error {
-    fn blue_pipe(&self) -> String {
-        format!("{}|{}", Color::Blue, Color::Reset)
-    }
-
     pub fn show_error(&self, file: Option<&str>, source_vec: Option<&[String]>) {
         if let Some(filename) = file {
             eprintln!(
@@ -107,334 +60,102 @@ impl Error {
         } else {
             eprintln!("{}Error{}:", Color::Red, Color::Reset)
         }
-        eprintln!("{} {}", self.blue_pipe(), self.format_error(source_vec));
+        eprintln!("{} {}", blue_pipe(), self.format_error(source_vec));
     }
 
     fn format_error(&self, source_vec: Option<&[String]>) -> String {
-        use Error::*;
-
         match self {
-            Input(reason) => format!(
-                "{}Input error: {}\n{}",
-                Color::White,
-                reason,
-                self.blue_pipe(),
-            ),
-            Unexpected => format!(
+            Error::Input(reason) => {
+                format!("{}Input error: {}\n{}", Color::White, reason, blue_pipe(),)
+            }
+            Error::Unexpected => format!(
                 "{}Unexpected fail: Something went wrong while parsing the file{}",
                 Color::White,
                 Color::Reset
             ),
-            Scanner(scanner_error) => self.format_scanner_error(scanner_error, source_vec.unwrap()),
-            Parser(parser_error) => self.format_parser_error(parser_error, source_vec.unwrap()),
-            Semantic(semantic_error) => {
-                self.format_semantic_error(semantic_error, source_vec.unwrap())
-            }
-            Runtime(_) => "RuntimeError".into(),
+            Error::Scanner(scanner_error) => scanner_error.format(source_vec.unwrap()),
+            Error::Parser(parser_error) => parser_error.format(source_vec.unwrap()),
+            Error::Semantic(semantic_error) => semantic_error.format(source_vec.unwrap()),
+            Error::Runtime(runtime_error) => runtime_error.format(source_vec.unwrap()),
         }
     }
-
-    fn format_scanner_error(&self, error: &ScannerError, source_vec: &[String]) -> String {
-        use ScannerError::*;
-        match error {
-            InvalidToken(line,tt, line_start, line_end) => format!(
-                "{}Syntax error in line {} from column {} to {}: \n{}\n{} '{}'\n{}{}\n{} {}Reason: {}{}",
-                Color::White,
-                line,
-                line_start,
-                line_end,
-                self.blue_pipe(),
-                self.blue_pipe(),
-                source_vec.get(*line -1).unwrap(),
-                self.blue_pipe(),
-                self.print_marker(*line_start, *line_end),
-                self.blue_pipe(),
-                Color::Yellow,
-                format!("Did you mean {} ?", tt),
-                Color::Reset
-            ),
-            UnterminatedString(line) => format!(
-                "{}Unterminated String error from line {} to the end of file:\n{} \n{}'{}'\n{}\n{} {}Note: Every string must start and finish with a quotation mark, (e.g \"string\"). Maybe you forgot one?{}",
-                Color::White,
-                line,
-                self.blue_pipe(),
-                self.blue_pipe(),
-                source_vec.get(*line -1).unwrap(),
-                self.blue_pipe(),
-                self.blue_pipe(),
-                Color::Yellow,
-                Color::Reset
-            ),
-            InvalidNumber(line,number, line_start, line_end) => format!(
-                "{}Syntax error in line {} from column {} to {}: \n{}\n{} '{}'\n{}{}\n{} {}Reason: {}{}",
-                Color::White,
-                line,
-                line_start,
-                line_end,
-                self.blue_pipe(),
-                self.blue_pipe(),
-                source_vec.get(*line -1).unwrap(),
-                self.blue_pipe(),
-                self.print_marker(*line_start, *line_end),
-                self.blue_pipe(),
-                Color::Yellow,
-                format!("Failed parsing number {}", number),
-                Color::Reset
-            ),
-            InvalidString(line, line_start, line_end) => format!(
-                "{}Syntax error in line {} from column {} to {}: \n{}\n{} '{}'\n{}{}\n{} {}Reason: {}{}",
-                Color::White,
-                line,
-                line_start,
-                line_end,
-                self.blue_pipe(),
-                self.blue_pipe(),
-                source_vec.get(*line -1).unwrap(),
-                self.blue_pipe(),
-                self.print_marker(*line_start, *line_end),
-                self.blue_pipe(),
-                Color::Yellow,
-                "Invalid character".to_string(),
-                Color::Reset
-            ),
+}
+fn print_marker(start: usize, end: usize, message: Option<&str>) -> String {
+    let mut arrow: String = "  ".to_string();
+    for i in 0..end {
+        if i >= start {
+            arrow.push('^');
+        } else {
+            arrow.push(' ');
         }
     }
-
-    fn format_parser_error(&self, error: &ParserError, source_vec: &[String]) -> String {
-        use ParserError::*;
-        match error {
-            Missing(line, string) => format!(
-                "{}Syntax error in line {}: \n{}\n{} '{}'\n{}\n{} {}{:?}{}",
-                Color::White,
-                line,
-                self.blue_pipe(),
-                self.blue_pipe(),
-                source_vec.get(*line - 1).unwrap(),
-                self.blue_pipe(),
-                self.blue_pipe(),
-                Color::Yellow,
-                string,
-                Color::Reset,
-            ),
-            MissingExpression(line) => format!(
-                "{}Syntax error in line {}:\n{}\n{} '{}'\n{}\n{}{} Reason: Missing an expression{}",
-                Color::White,
-                line,
-                self.blue_pipe(),
-                self.blue_pipe(),
-                source_vec.get(line - 1).unwrap(),
-                self.blue_pipe(),
-                self.blue_pipe(),
-                Color::Yellow,
-                Color::Reset
-            ),
-            AssignmentExpected(line) => format!(
-                "{}Syntax error in line {}: \n{}\n{} '{}'\n{}\n{} {}{}{}",
-                Color::White,
-                line,
-                self.blue_pipe(),
-                self.blue_pipe(),
-                source_vec.get(*line - 1).unwrap(),
-                self.blue_pipe(),
-                self.blue_pipe(),
-                Color::Yellow,
-                "Expected \"=\"",
-                Color::Reset,
-            ),
-            TypeNotDefined(line) => format!(
-                "{}Syntax error in line {}: \n{}\n{} '{}'\n{}\n{} {}{}{}",
-                Color::White,
-                line,
-                self.blue_pipe(),
-                self.blue_pipe(),
-                source_vec.get(*line - 1).unwrap(),
-                self.blue_pipe(),
-                self.blue_pipe(),
-                Color::Yellow,
-                "Expected type after \":\"",
-                Color::Reset,
-            ),
-            ColonExpected(line) => format!(
-                "{}Syntax error in line {}: \n{}\n{} '{}'\n{}\n{} {}{}{}",
-                Color::White,
-                line,
-                self.blue_pipe(),
-                self.blue_pipe(),
-                source_vec.get(*line - 1).unwrap(),
-                self.blue_pipe(),
-                self.blue_pipe(),
-                Color::Yellow,
-                "Expected \":\"",
-                Color::Reset,
-            ),
-            SemicolonExpected(line) => format!(
-                "{}Syntax error in line {}: \n{}\n{} '{}'\n{}\n{} {}{}{}",
-                Color::White,
-                line,
-                self.blue_pipe(),
-                self.blue_pipe(),
-                source_vec.get(*line - 1).unwrap(),
-                self.blue_pipe(),
-                self.blue_pipe(),
-                Color::Yellow,
-                "Expected \";\"",
-                Color::Reset,
-            ),
-            IdentifierExpected(line) => format!(
-                "{}Syntax error in line {}: \n{}\n{} '{}'\n{}\n{} {}{}{}",
-                Color::White,
-                line,
-                self.blue_pipe(),
-                self.blue_pipe(),
-                source_vec.get(*line - 1).unwrap(),
-                self.blue_pipe(),
-                self.blue_pipe(),
-                Color::Yellow,
-                "Name of the variable must be provided after the \"const\" keyword.",
-                Color::Reset,
-            ),
-            Expected(line, tt) => match tt {
-                TokenType::Equal => format!(
-                    "{}Syntax error in line {}: \n{}\n{} '{}'\n{}\n{} {}{}{}",
-                    Color::White,
-                    line,
-                    self.blue_pipe(),
-                    self.blue_pipe(),
-                    source_vec.get(*line - 1).unwrap(),
-                    self.blue_pipe(),
-                    self.blue_pipe(),
-                    Color::Yellow,
-                    "Expected \"=\"",
-                    Color::Reset,
+    if message.is_some() {
+        arrow.push_str(&format!("--- {}", message.unwrap()));
+    }
+    arrow
+}
+fn static_error_template(
+    error_type: &str,
+    source_vec: &[String],
+    line: usize,
+    starts_at: Option<usize>,
+    ends_at: Option<usize>,
+    reason: String,
+    marker: Option<String>,
+) -> String {
+    fn create_title(
+        error_type: &str,
+        line: usize,
+        starts_at: Option<usize>,
+        ends_at: Option<usize>,
+    ) -> String {
+        match starts_at {
+            Some(start_number) => match ends_at {
+                Some(end_number) => format!(
+                    "{} error in line {} from character {} to {}:",
+                    error_type, line, start_number, end_number
                 ),
-                TokenType::RightParen => format!(
-                    "{}Syntax error in line {}: \n{}\n{} '{}'\n{}\n{} {}{}{}",
-                    Color::White,
-                    line,
-                    self.blue_pipe(),
-                    self.blue_pipe(),
-                    source_vec.get(*line - 1).unwrap(),
-                    self.blue_pipe(),
-                    self.blue_pipe(),
-                    Color::Yellow,
-                    "Expected a ')' after this expression".to_string(),
-                    Color::Reset,
+                None => format!(
+                    "{} error in line {} from character {} to the end of file:",
+                    error_type, line, start_number
                 ),
-                TokenType::Semicolon => format!(
-                    "{}Syntax error in line {}: \n{}\n{} '{}'\n{}\n{} {}{}{}",
-                    Color::White,
-                    line,
-                    self.blue_pipe(),
-                    self.blue_pipe(),
-                    source_vec.get(*line - 1).unwrap(),
-                    self.blue_pipe(),
-                    self.blue_pipe(),
-                    Color::Yellow,
-                    "Expected \";\"",
-                    Color::Reset,
-                ),
-                TokenType::Colon => format!(
-                    "{}Syntax error in line {}: \n{}\n{} '{}'\n{}\n{} {}{}{}",
-                    Color::White,
-                    line,
-                    self.blue_pipe(),
-                    self.blue_pipe(),
-                    source_vec.get(*line - 1).unwrap(),
-                    self.blue_pipe(),
-                    self.blue_pipe(),
-                    Color::Yellow,
-                    "Expected \":\"",
-                    Color::Reset,
-                ),
-                _ => "Não implementado".to_string(),
             },
-            ReturnTypeExpected(line) => format!(
-                "{}Syntax error in line {}: \n{}\n{} '{}'\n{}\n{} {}{}{}",
-                Color::White,
-                line,
-                self.blue_pipe(),
-                self.blue_pipe(),
-                source_vec.get(*line - 1).unwrap(),
-                self.blue_pipe(),
-                self.blue_pipe(),
-                Color::Yellow,
-                "Expected a return type",
-                Color::Reset,
-            ),
+            None => format!("{} error in line {}:", error_type, line),
         }
     }
 
-    fn format_semantic_error(&self, error: &SemanticError, _source_vec: &[String]) -> String {
-        match error {
-            SemanticError::MismatchedTypes(expected, found, note) => {
-                if note.is_some() {
-                    format!(
-                        "{}Mismatched types error: Expected {}{}{}, found {}{}{}\n{}\n{} {}",
-                        Color::White,
-                        Color::Yellow,
-                        expected,
-                        Color::White,
-                        Color::Yellow,
-                        found,
-                        Color::White,
-                        self.blue_pipe(),
-                        self.blue_pipe(),
-                        note.as_ref().unwrap()
-                    )
-                } else {
-                    format!(
-                        "{}Mismatched types error: Expected {}{}{}, found {}{}{}",
-                        Color::White,
-                        Color::Yellow,
-                        expected,
-                        Color::White,
-                        Color::Yellow,
-                        found,
-                        Color::White,
-                    )
-                }
-            }
-            SemanticError::IncompatibleArith(op, left, right) => {
-                format!(
-                    "{}Incompatible operation error: Cannot use the {}'{}'{} binary operator with {}{}{} and {}{}{}.",
-                    Color::White,
-                    Color::Yellow,
-                    op,
-                    Color::White,
-                    Color::Yellow,
-                    left,
-                    Color::White,
-                    Color::Yellow,
-                    right,
-                    Color::Reset
-                )
-            },
-            SemanticError::IncompatibleUnaryOp(op, t) => format!("{} The unary '{}' operator expects the following expression to be of type {}{}{}, but the expression evaluates to {}{}{}.", Color::White, op, Color::Yellow, Type::Num, Color::White, Color::Yellow, t, Color::Reset),
-            SemanticError::IncompatibleComparation(op, l, r, note) => {
-                if note.is_some() {
-                    format!("{}Incompatible comparation: Cannot compare using the {}'{}'{} operator with {}{}{} and {}{}{}\n{}\n{} {}", Color::White, Color::Yellow, op, Color::White, Color::Yellow, l, Color::White, Color::Yellow, r, Color::Reset, self.blue_pipe(), self.blue_pipe(), note.as_ref().unwrap())
-                } else {
-                    format!("{}Incompatible comparation: Cannot compare using the {}'{}'{} operator with {}{}{} and {}{}{}", Color::White, Color::Yellow, op, Color::White, Color::Yellow, l, Color::White, Color::Yellow, r, Color::Reset)
-                }
-            }
-            SemanticError::IncompatibleLogicOp(op, l, r) => format!("{}The {}'{}'{} operator expects the left and right expressions to be both of type {}{}{} or {}{}{}, but the expressions evaluates to {}{}{} and {}{}{} respectively.", Color::White, Color::Yellow, op, Color::White, Color::Yellow, Type::Bool, Color::White, Color::Yellow, Type::Null, Color::White, Color::Yellow, l, Color::White, Color::Yellow, r, Color::White),
-            SemanticError::IncompatibleDeclaration => "The type is not compatible with de assignment".to_string(),
-            SemanticError::VariableNotDeclared => "Variable not declared".to_string(), // TODO melhorar msg erro
-            SemanticError::VariableOverwrited => "Variable overwrited".to_string(), // TODO melhorar msg erro
-            SemanticError::FunctionNotDeclared => "Function not declared".to_string(),
-            SemanticError::ArityMismatch(_expected, _found) => "Arity Mismatch".to_string(),            
-        }
+    if marker.is_some() {
+        format!(
+            "{}{} \n{}\n{} '{}'\n{}{}\n{}\n{}{} Reason: {}{}",
+            Color::White,
+            create_title(error_type, line, starts_at, ends_at),
+            blue_pipe(),
+            blue_pipe(),
+            source_vec.get(line - 1).unwrap(),
+            blue_pipe(),
+            marker.unwrap(),
+            blue_pipe(),
+            blue_pipe(),
+            Color::Yellow,
+            reason,
+            Color::Reset
+        )
+    } else {
+        format!(
+            "{}{} \n{}\n{} '{}'\n{}\n{}{} Reason: {}{}",
+            Color::White,
+            create_title(error_type, line, starts_at, ends_at),
+            blue_pipe(),
+            blue_pipe(),
+            source_vec.get(line - 1).unwrap(),
+            blue_pipe(),
+            blue_pipe(),
+            Color::Yellow,
+            reason,
+            Color::Reset
+        )
     }
-
-    fn print_marker(&self, start: usize, end: usize) -> String {
-        let mut arrow: String = "  ".to_string();
-        for i in 0..end {
-            if i >= start {
-                arrow.push('^');
-            } else {
-                arrow.push(' ');
-            }
-        }
-        arrow
-    }
+}
+fn blue_pipe() -> String {
+    format!("{}|{}", Color::Blue, Color::Reset)
 }

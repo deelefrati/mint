@@ -1,4 +1,4 @@
-use crate::error::{Error, ScannerError};
+use crate::error::{scanner::ScannerError, Error};
 use crate::token::Token;
 use crate::token_type::TokenType;
 use std::str::Chars;
