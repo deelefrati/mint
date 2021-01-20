@@ -17,6 +17,7 @@ pub enum SemanticError {
     VariableOverwrited(usize, usize, usize, String),
     FunctionNotDeclared(usize, usize, usize),
     ArityMismatch(usize, usize, usize, usize, usize),
+    ReturnTopLever(usize, usize, usize),
 }
 
 impl SemanticError {
@@ -113,6 +114,15 @@ impl SemanticError {
                     format!("Wrong number of parameters. Expected {} and found {}", expected, found),
                     Some(print_marker(*starts_at, *ends_at, None)),
                 ),
+                SemanticError::ReturnTopLever(line, starts_at, ends_at) => static_error_template(
+                    error_type,
+                    source_vec,
+                    *line,
+                    Some(*starts_at),
+                    Some(*ends_at),
+                    "Return statement can only be called inside a function".to_string(),
+                    Some(print_marker(*starts_at, *ends_at, None)),
+                    )
         }
     }
 }

@@ -9,5 +9,5 @@ pub enum Stmt {
     Block(Vec<Stmt>),
     IfStmt(Expr, Vec<Stmt>, Vec<Stmt>),
     Function(Token, Vec<(Token, VarType)>, Vec<Stmt>, VarType),
-    Return(Option<Expr>),
+    Return(Token, Option<Expr>),
 }

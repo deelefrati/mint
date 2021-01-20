@@ -315,7 +315,7 @@ impl Interpreter {
                 );
                 Ok(())
             }
-            Return(expr) => Err(RuntimeError::Return(if let Some(expr) = expr {
+            Return(_, expr) => Err(RuntimeError::Return(if let Some(expr) = expr {
                 self.eval_expr(expr)?
             } else {
                 Value::Null

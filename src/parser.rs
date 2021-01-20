@@ -153,7 +153,6 @@ impl<'a> Parser<'a> {
     }
 
     fn if_statement(&mut self) -> Result<Stmt, ParserError> {
-        println!("aaa");
         self.consume(LeftParen)?;
         let cond = self.expression()?;
         self.consume(RightParen)?;
@@ -196,21 +195,24 @@ impl<'a> Parser<'a> {
             self.assert()
         } else if self.consume(LeftBrace).is_ok() {
             self.block()
-        } else if self.consume(Return).is_ok() {
-            self.return_()
+        } else if let Ok(ret_token) = self.consume(Return) {
+            self.return_(&ret_token)
         } else {
             self.expression_statement()
         }
     }
 
-    fn return_(&mut self) -> Result<Stmt, ParserError> {
-        Ok(Stmt::Return(if self.next_is(single(Semicolon)).is_none() {
-            let expr = self.expression()?;
-            self.consume(Semicolon)?;
-            Some(expr)
-        } else {
-            None
-        }))
+    fn return_(&mut self, token: &Token) -> Result<Stmt, ParserError> {
+        Ok(Stmt::Return(
+            token.clone(),
+            if self.next_is(single(Semicolon)).is_none() {
+                let expr = self.expression()?;
+                self.consume(Semicolon)?;
+                Some(expr)
+            } else {
+                None
+            },
+        ))
     }
 
     fn block(&mut self) -> Result<Stmt, ParserError> {
@@ -238,7 +240,10 @@ impl<'a> Parser<'a> {
 
     fn expression_statement(&mut self) -> Result<Stmt, ParserError> {
         match self.expression() {
-            Ok(value) => Ok(Stmt::ExprStmt(value)),
+            Ok(value) => {
+                self.consume(Semicolon)?;
+                Ok(Stmt::ExprStmt(value))
+            }
             Err(error) => Err(error),
         }
     }
@@ -358,7 +363,6 @@ impl<'a> Parser<'a> {
 
             self.consume(RightParen)?;
         }
-        //self.consume(Semicolon)?;
         Ok(Expr::Call(Box::new(callee), arguments))
     }
 

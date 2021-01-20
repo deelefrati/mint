@@ -4,7 +4,7 @@ function foo(){
 }
 
 const a =  3;
-foo()
+foo();
 assert(a === 3);
 
 function fib(n: number) : number {
@@ -17,8 +17,7 @@ function fib(n: number) : number {
 assert(fib(0) === 0);
 assert(fib(1) === 1);
 assert(fib(2) === 1);
-assert(fib(10) === 55);
-assert(fib(20) === 6765);
+assert(fib(5) === 5);
 
 
 //function is_even(n: number) {
@@ -56,3 +55,13 @@ function nothing(){}
 
 assert(only_return() === null);
 assert(nothing() === null);
+
+function f(x : boolean) : string {
+  if(x){
+    return "string";
+  }
+}
+
+assert(f(true) === "string");
+assert(f(false) === null);
+

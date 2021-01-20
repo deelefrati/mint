@@ -35,7 +35,7 @@ fn main() {
                     match parser.parse() {
                         Ok(stmts) => {
                             let mut semantic_analyzer = SemanticAnalyzer::new();
-                            match semantic_analyzer.analyze(&stmts) {
+                            match semantic_analyzer.analyze(&stmts, None) {
                                 Ok(_) => {
                                     let mut interpreter = Interpreter::default();
                                     if let Some(error) = interpreter.interpret(&stmts) {
