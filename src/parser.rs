@@ -130,8 +130,9 @@ impl<'a> Parser<'a> {
             self.consume(RightParen)?;
         }
         let mut return_type = VarType::Null;
+        let mut return_token = None;
         if self.next_is(single(Colon)).is_some() {
-            if let Some((var_type, _)) = self.next_is(|tt| match tt {
+            if let Some((var_type, token)) = self.next_is(|tt| match tt {
                 Num => Some(VarType::Number),
                 Str => Some(VarType::String),
                 Bool => Some(VarType::Boolean),
@@ -139,6 +140,7 @@ impl<'a> Parser<'a> {
                 _ => None,
             }) {
                 return_type = var_type;
+                return_token = Some(token);
             } else {
                 return Err(ParserError::ReturnTypeExpected(self.current_line));
             }
@@ -149,6 +151,7 @@ impl<'a> Parser<'a> {
             params,
             self.list_statements()?,
             return_type,
+            return_token,
         ))
     }
 
@@ -156,9 +159,9 @@ impl<'a> Parser<'a> {
         self.consume(LeftParen)?;
         let cond = self.expression()?;
         self.consume(RightParen)?;
-        let then = vec![self.statement()?];
+        let then = self.block()?;
         let else_ = if self.next_is(single(Else)).is_some() {
-            vec![self.statement()?]
+            self.block()?
         } else {
             vec![]
         };
@@ -193,8 +196,8 @@ impl<'a> Parser<'a> {
     fn statement(&mut self) -> Result<Stmt, ParserError> {
         if self.consume(Assert).is_ok() {
             self.assert()
-        } else if self.consume(LeftBrace).is_ok() {
-            self.block()
+        //} else if self.consume(LeftBrace).is_ok() {
+        //    self.block()
         } else if let Ok(ret_token) = self.consume(Return) {
             self.return_(&ret_token)
         } else {
@@ -215,8 +218,9 @@ impl<'a> Parser<'a> {
         ))
     }
 
-    fn block(&mut self) -> Result<Stmt, ParserError> {
-        Ok(Stmt::Block(self.list_statements()?))
+    fn block(&mut self) -> Result<Vec<Stmt>, ParserError> {
+        self.consume(LeftBrace)?;
+        Ok(self.list_statements()?)
     }
 
     fn list_statements(&mut self) -> Result<Vec<Stmt>, ParserError> {

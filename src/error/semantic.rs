@@ -18,6 +18,7 @@ pub enum SemanticError {
     FunctionNotDeclared(usize, usize, usize),
     ArityMismatch(usize, usize, usize, usize, usize),
     ReturnTopLever(usize, usize, usize),
+    MissingReturnStmt(usize, usize, usize),
 }
 
 impl SemanticError {
@@ -120,9 +121,18 @@ impl SemanticError {
                     *line,
                     Some(*starts_at),
                     Some(*ends_at),
-                    "Return statement can only be called inside a function".to_string(),
+                    "Return statement can only be called inside a function body".to_string(),
                     Some(print_marker(*starts_at, *ends_at, None)),
-                    )
+                    ),
+                SemanticError::MissingReturnStmt(line, starts_at, ends_at) => static_error_template(
+                    error_type,
+                    source_vec,
+                    *line,
+                    Some(*starts_at),
+                    Some(*ends_at),
+                    "Function lacks ending return statement and return type does not include 'Null'".to_string(),
+                    Some(print_marker(*starts_at, *ends_at, None)),
+                    ),
         }
     }
 }

@@ -302,7 +302,7 @@ impl Interpreter {
                 },
                 Err(err) => Err(err),
             },
-            Function(token, params, body, return_type) => {
+            Function(token, params, body, return_type, _) => {
                 self.environment.define(
                     token.lexeme(),
                     Value::new_function(

@@ -57,6 +57,24 @@ impl<'a> SemanticAnalyzer<'a> {
         }
     }
 
+    fn validate_return(&self, body: &[Stmt]) -> bool {
+        if body.iter().any(|stmt| matches!(stmt, Stmt::Return(_, _))) {
+            true
+        } else {
+            let if_stmts = body
+                .iter()
+                .filter_map(|stmt| match stmt {
+                    Stmt::IfStmt(_, then, else_) => Some((then, else_)),
+                    _ => None,
+                })
+                .collect::<Vec<(&Vec<Stmt>, &Vec<Stmt>)>>();
+            if let Some((then, else_)) = if_stmts.last() {
+                return self.validate_return(then) && self.validate_return(else_);
+            }
+            false
+        }
+    }
+
     pub fn analyze(
         &mut self,
         stmts: &'a [Stmt],
@@ -162,7 +180,7 @@ impl<'a> SemanticAnalyzer<'a> {
                     Err(semantic_error) => self.errors.push(Error::Semantic(semantic_error)),
                 },
                 Stmt::Block(stmts) => self.with_new_env(|analyzer| {
-                    if let Err(nested_errors) = analyzer.analyze(stmts, fun_ret_type.clone()) {
+                    if let Err(nested_errors) = analyzer.analyze(stmts, fun_ret_type) {
                         for err in nested_errors {
                             analyzer.errors.push(err);
                         }
@@ -174,13 +192,13 @@ impl<'a> SemanticAnalyzer<'a> {
                         Err(semantic_error) => self.errors.push(Error::Semantic(semantic_error)),
                     }
                     self.with_new_env(|analyzer| {
-                        analyzer.analyze(then, fun_ret_type.clone()).ok();
+                        analyzer.analyze(then, fun_ret_type).ok();
                     });
                     self.with_new_env(|analyzer| {
-                        analyzer.analyze(else_, fun_ret_type.clone()).ok();
+                        analyzer.analyze(else_, fun_ret_type).ok();
                     });
                 }
-                Stmt::Function(token, params, body, return_type) => {
+                Stmt::Function(token, params, body, return_type, return_token) => {
                     let param_types = params.iter().map(|&(_, param_type)| param_type).collect();
                     if self
                         .insert_var(&token.lexeme(), Type::Fun(param_types, *return_type))
@@ -207,22 +225,30 @@ impl<'a> SemanticAnalyzer<'a> {
                                 ));
                             }
                         }
-                        analyzer.analyze(body, Some(return_type.clone())).ok();
-                    })
+                        analyzer.analyze(body, Some(*return_type)).ok();
+                    });
+                    if return_type != &VarType::Null && !self.validate_return(body) {
+                        self.errors
+                            .push(Error::Semantic(SemanticError::MissingReturnStmt(
+                                return_token.as_ref().unwrap().line(),
+                                return_token.as_ref().unwrap().starts_at(),
+                                return_token.as_ref().unwrap().ends_at(),
+                            )))
+                    }
                 }
                 Stmt::Return(token, expr) => match expr {
                     Some(expr) => {
-                        if fun_ret_type.is_some() {
+                        if let Some(fun_ret_t) = fun_ret_type {
                             match self.analyze_one(&expr) {
                                 Ok(t) => {
                                     let type_: VarType = t.clone().into();
-                                    if type_ != fun_ret_type.unwrap() {
+                                    if type_ != fun_ret_t {
                                         self.errors.push(Error::Semantic(
                                             SemanticError::MismatchedTypes(
                                                 token.line(),
                                                 token.starts_at(),
                                                 token.ends_at(),
-                                                fun_ret_type.as_ref().unwrap().into(),
+                                                (&fun_ret_t).into(),
                                                 t.clone(),
                                             ),
                                         ));
@@ -230,7 +256,6 @@ impl<'a> SemanticAnalyzer<'a> {
                                     self.insert(&expr, t);
                                 }
                                 Err(semantic_err) => {
-                                    println!("{:?}", semantic_err);
                                     self.errors.push(Error::Semantic(semantic_err))
                                 }
                             }
@@ -244,15 +269,15 @@ impl<'a> SemanticAnalyzer<'a> {
                         }
                     }
                     None => {
-                        if fun_ret_type.is_some() {
-                            if fun_ret_type.unwrap() != VarType::Null {
+                        if let Some(fun_ret_t) = fun_ret_type {
+                            if fun_ret_t != VarType::Null {
                                 self.errors
                                     .push(Error::Semantic(SemanticError::MismatchedTypes(
                                         token.line(),
                                         token.starts_at(),
                                         token.ends_at(),
                                         Type::Null,
-                                        fun_ret_type.as_ref().unwrap().into(),
+                                        (&fun_ret_t).into(),
                                     )))
                             }
                         }
@@ -263,7 +288,6 @@ impl<'a> SemanticAnalyzer<'a> {
         if self.errors.is_empty() {
             Ok(())
         } else {
-            println!("{:?}", self.errors.clone());
             Err(self.errors.clone())
         }
     }
