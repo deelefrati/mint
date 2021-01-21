@@ -68,10 +68,14 @@ impl<'a> SemanticAnalyzer<'a> {
                     _ => None,
                 })
                 .collect::<Vec<(&Vec<Stmt>, &Vec<Stmt>)>>();
-            if let Some((then, else_)) = if_stmts.last() {
-                return self.validate_return(then) && self.validate_return(else_);
+            let mut valid = false;
+            for (then, else_) in if_stmts.iter().rev() {
+                valid |= self.validate_return(then) && self.validate_return(else_);
+                if valid {
+                    break;
+                }
             }
-            false
+            valid
         }
     }
 

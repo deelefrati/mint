@@ -99,3 +99,17 @@ function k(x: number) : number {
    } 
   }
 }
+
+function l(x: number) : number {
+  if(x){
+    return x;
+  }else{
+   return x; 
+  }
+
+  if(x){
+
+  }else{
+
+  }
+}
