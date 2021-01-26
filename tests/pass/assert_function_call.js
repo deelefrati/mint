@@ -1,10 +1,10 @@
 function foo(){
    const a = 1+1;
-   assert(a === 2); 
+   assert(a === 2);
 }
 
 const a =  3;
-foo();
+assert(foo() === null);
 assert(a === 3);
 
 function fib(n: number) : number {
@@ -22,7 +22,7 @@ assert(fib(5) === 5);
 
 
 function only_return(){
- return; 
+ return;
 }
 
 function nothing(){}
@@ -54,7 +54,7 @@ function g(x: number): number {
 function h(x: number): number {
   if(x){
     if(x){
-      
+
     }else{
 
     }
@@ -74,9 +74,9 @@ function i(x: number): number {
 function j(x: number): number {
   if(x){
     if(x){
-     return x; 
+     return x;
     }else{
-     return x; 
+     return x;
     }
   }else{
     return x;
@@ -89,14 +89,14 @@ function k(x: number) : number {
   }else{
    if(x){
     if(x){
-      
+
     }else{
-      
+
     }
      return x;
    }else{
     return x;
-   } 
+   }
   }
 }
 
@@ -104,7 +104,7 @@ function l(x: number) : number {
   if(x){
     return x;
   }else{
-   return x; 
+   return x;
   }
 
   if(x){
@@ -113,3 +113,12 @@ function l(x: number) : number {
 
   }
 }
+// some random comment
+function foo() : number{
+    const a = 1;
+   return a;
+}
+
+
+foo();
+const a = 10;

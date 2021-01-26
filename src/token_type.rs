@@ -126,7 +126,7 @@ impl From<Type> for VarType {
             Type::Bool => VarType::Boolean,
             Type::Null => VarType::Null,
             Type::Str => VarType::String,
-            Type::Fun(_, _) => VarType::Function,
+            Type::Fun(_, _, _, _) => VarType::Function,
         }
     }
 }

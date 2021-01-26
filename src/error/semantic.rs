@@ -19,6 +19,7 @@ pub enum SemanticError {
     ArityMismatch(usize, usize, usize, usize, usize),
     ReturnTopLever(usize, usize, usize),
     MissingReturnStmt(usize, usize, usize),
+    UnboundVar(usize, usize, usize, String, String),
 }
 
 impl SemanticError {
@@ -133,6 +134,17 @@ impl SemanticError {
                     "Function lacks ending return statement and return type does not include 'Null'".to_string(),
                     Some(print_marker(*starts_at, *ends_at, None)),
                     ),
+                SemanticError::UnboundVar(line, starts_at, ends_at, id, fun_name) => static_error_template(
+                    error_type,
+                    source_vec,
+                    *line,
+                    Some(*starts_at),
+                    Some(*ends_at),
+                    format!("Variable '{}' is not defined when function is called", id),
+                    Some(print_marker(
+                            *starts_at,
+                            *ends_at,
+                            Some(&format!("'{}' is called before the of the definition of '{}'", fun_name, id))))),
         }
     }
 }

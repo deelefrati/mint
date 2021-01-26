@@ -1,4 +1,5 @@
 use crate::{
+    environment::Environment,
     error::{semantic::SemanticError, Error},
     expr::*,
     stmt::Stmt,
@@ -6,7 +7,7 @@ use crate::{
     token_type::VarType,
 };
 use std::collections::HashMap;
-
+type SmntEnv = Environment<(Type, bool)>;
 impl std::fmt::Display for Type {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         match self {
@@ -14,7 +15,7 @@ impl std::fmt::Display for Type {
             Type::Num => write!(f, "Number"),
             Type::Bool => write!(f, "Boolean"),
             Type::Str => write!(f, "String"),
-            Type::Fun(_, _) => write!(f, "Function"),
+            Type::Fun(_, _, _, _) => write!(f, "Function"),
         }
     }
 }
@@ -24,7 +25,7 @@ pub enum Type {
     Bool,
     Null,
     Str,
-    Fun(Vec<VarType>, VarType),
+    Fun(SmntEnv, Vec<VarType>, VarType, Vec<String>),
 }
 impl std::convert::From<&VarType> for Type {
     fn from(var_type: &VarType) -> Self {
@@ -33,14 +34,20 @@ impl std::convert::From<&VarType> for Type {
             VarType::Boolean => Type::Bool,
             VarType::Null => Type::Null,
             VarType::String => Type::Str,
-            VarType::Function => Type::Fun(Vec::default(), VarType::Null),
+            VarType::Function => Type::Fun(
+                SmntEnv::new(HashMap::default()),
+                Vec::default(),
+                VarType::Null,
+                Vec::default(),
+            ),
         }
     }
 }
 pub struct SemanticAnalyzer<'a> {
     types: HashMap<&'a Expr, Type>,
-    symbol_table: Vec<HashMap<String, Type>>,
+    symbol_table: SmntEnv,
     errors: Vec<Error>,
+    analyzing_function: bool,
 }
 
 impl<'a> Default for SemanticAnalyzer<'a> {
@@ -52,8 +59,9 @@ impl<'a> SemanticAnalyzer<'a> {
     pub fn new() -> Self {
         SemanticAnalyzer {
             types: HashMap::default(),
-            symbol_table: vec![HashMap::default()],
+            symbol_table: SmntEnv::new(HashMap::default()),
             errors: vec![],
+            analyzing_function: false,
         }
     }
 
@@ -79,11 +87,32 @@ impl<'a> SemanticAnalyzer<'a> {
         }
     }
 
+    fn declare_env_vars(&mut self, body: &[Stmt]) -> Result<(), SemanticError> {
+        let vec = body.iter().filter_map(|stmt| match stmt {
+            Stmt::VarStmt(id, var_type, expr) => Some((id, var_type, expr)),
+            _ => None,
+        });
+
+        for (id, var_type, expr) in vec {
+            if var_type.is_none() {
+                let evaluated_type = self.analyze_one(expr)?;
+                self.declare(&id, evaluated_type);
+            } else {
+                self.declare(&id, var_type.as_ref().unwrap().into());
+            }
+        }
+
+        Ok(())
+    }
+
     pub fn analyze(
         &mut self,
         stmts: &'a [Stmt],
         fun_ret_type: Option<VarType>,
     ) -> Result<(), Vec<Error>> {
+        if let Err(err) = self.declare_env_vars(stmts) {
+            self.errors.push(Error::Semantic(err));
+        }
         for stmt in stmts {
             match stmt {
                 Stmt::ExprStmt(expr) => match self.analyze_one(&expr) {
@@ -108,7 +137,7 @@ impl<'a> SemanticAnalyzer<'a> {
                 Stmt::VarStmt(var_name, var_type, expr) => match self.analyze_one(&expr) {
                     Ok(t) => match (var_type, t.clone()) {
                         (Some(VarType::Boolean), Type::Bool) => {
-                            if self.insert_var(var_name, Type::Bool).is_some() {
+                            if let Some((_, true)) = self.define(var_name, Type::Bool) {
                                 let (line, starts_at, ends_at) = expr.placement();
                                 self.errors.push(Error::Semantic(
                                     SemanticError::VariableOverwrited(
@@ -121,7 +150,7 @@ impl<'a> SemanticAnalyzer<'a> {
                             }
                         }
                         (Some(VarType::String), Type::Str) => {
-                            if self.insert_var(var_name, Type::Str).is_some() {
+                            if let Some((_, true)) = self.define(var_name, Type::Str) {
                                 let (line, starts_at, ends_at) = expr.placement();
                                 self.errors.push(Error::Semantic(
                                     SemanticError::VariableOverwrited(
@@ -134,7 +163,7 @@ impl<'a> SemanticAnalyzer<'a> {
                             }
                         }
                         (Some(VarType::Number), Type::Num) => {
-                            if self.insert_var(var_name, Type::Num).is_some() {
+                            if let Some((_, true)) = self.define(var_name, Type::Num) {
                                 let (line, starts_at, ends_at) = expr.placement();
                                 self.errors.push(Error::Semantic(
                                     SemanticError::VariableOverwrited(
@@ -147,7 +176,7 @@ impl<'a> SemanticAnalyzer<'a> {
                             }
                         }
                         (Some(VarType::Null), Type::Null) => {
-                            if self.insert_var(var_name, Type::Null).is_some() {
+                            if let Some((_, true)) = self.define(var_name, Type::Null) {
                                 let (line, starts_at, ends_at) = expr.placement();
                                 self.errors.push(Error::Semantic(
                                     SemanticError::VariableOverwrited(
@@ -160,7 +189,7 @@ impl<'a> SemanticAnalyzer<'a> {
                             }
                         }
                         (None, _) => {
-                            if self.insert_var(var_name, t).is_some() {
+                            if let Some((_, true)) = self.define(var_name, t) {
                                 let (line, starts_at, ends_at) = expr.placement();
                                 self.errors.push(Error::Semantic(
                                     SemanticError::VariableOverwrited(
@@ -203,22 +232,23 @@ impl<'a> SemanticAnalyzer<'a> {
                     });
                 }
                 Stmt::Function(token, params, body, return_type, return_token) => {
-                    let param_types = params.iter().map(|&(_, param_type)| param_type).collect();
-                    if self
-                        .insert_var(&token.lexeme(), Type::Fun(param_types, *return_type))
-                        .is_some()
-                    {
-                        self.errors
-                            .push(Error::Semantic(SemanticError::VariableOverwrited(
-                                token.line(),
-                                token.starts_at(),
-                                token.ends_at(),
-                                token.lexeme(),
-                            )))
-                    }
-                    self.with_new_env(|analyzer| {
+                    let param_types = params
+                        .iter()
+                        .map(|&(_, param_type)| param_type)
+                        .collect::<Vec<VarType>>();
+                    self.declare(
+                        &token.lexeme(),
+                        Type::Fun(
+                            SmntEnv::new(HashMap::default()),
+                            param_types.clone(),
+                            *return_type,
+                            vec![],
+                        ),
+                    );
+                    let (fun_env, declared_keys) = self.with_new_env(|analyzer| {
+                        analyzer.analyzing_function = true;
                         for (param, type_) in params {
-                            if analyzer.insert_var(&param.lexeme(), type_.into()).is_some() {
+                            if analyzer.define(&param.lexeme(), type_.into()).is_some() {
                                 analyzer.errors.push(Error::Semantic(
                                     SemanticError::VariableOverwrited(
                                         param.line(),
@@ -230,7 +260,31 @@ impl<'a> SemanticAnalyzer<'a> {
                             }
                         }
                         analyzer.analyze(body, Some(*return_type)).ok();
+
+                        (
+                            analyzer.symbol_table.clone(),
+                            analyzer.symbol_table.declared_keys(),
+                        )
                     });
+                    if let Some((_, true)) = self.define(
+                        &token.lexeme(),
+                        Type::Fun(
+                            fun_env.clone(),
+                            param_types.clone(),
+                            *return_type,
+                            declared_keys.clone(),
+                        ),
+                    ) {
+                        self.errors
+                            .push(Error::Semantic(SemanticError::VariableOverwrited(
+                                token.line(),
+                                token.starts_at(),
+                                token.ends_at(),
+                                token.lexeme(),
+                            ))); // FIXME trocar o erro
+                    }
+                    self.analyzing_function = false;
+
                     if return_type != &VarType::Null && !self.validate_return(body) {
                         self.errors
                             .push(Error::Semantic(SemanticError::MissingReturnStmt(
@@ -300,14 +354,22 @@ impl<'a> SemanticAnalyzer<'a> {
         self.types.insert(expr, t);
     }
 
-    fn insert_var(&mut self, id: &str, t: Type) -> Option<()> {
-        let last_env = self.symbol_table.last_mut().unwrap();
-        if last_env.contains_key(id) {
-            Some(())
-        } else {
-            last_env.insert(id.to_string(), t);
-            None
-        }
+    //fn insert_var(&mut self, id: &str, t: Type) -> Option<()> {
+    //    let last_env = self.symbol_table.last_mut().unwrap();
+    //    if last_env.contains_key(id) {
+    //        Some(())
+    //    } else {
+    //        last_env.insert(id.to_string(), t);
+    //        None
+    //    }
+    //}
+
+    fn declare(&mut self, id: &str, t: Type) {
+        self.symbol_table.define(id.to_string(), (t, false));
+    }
+
+    fn define(&mut self, id: &str, t: Type) -> Option<(Type, bool)> {
+        self.symbol_table.define(id.to_string(), (t, true))
     }
 
     fn analyze_one(&mut self, expr: &Expr) -> Result<Type, SemanticError> {
@@ -324,24 +386,23 @@ impl<'a> SemanticAnalyzer<'a> {
     }
 
     fn with_new_env<T>(&mut self, fun: impl Fn(&mut Self) -> T) -> T {
-        self.symbol_table.push(HashMap::default());
+        self.symbol_table.push();
         let result = fun(self);
         self.symbol_table.pop();
         result
     }
 
     fn analyze_var_expr(&mut self, token: &Token, identifier: &str) -> Result<Type, SemanticError> {
-        for env in self.symbol_table.iter().rev() {
-            if let Some(t) = env.get(identifier) {
-                return Ok(t.clone());
-            }
+        if let Some(t) = self.get_var(identifier) {
+            Ok(t)
+        } else {
+            Err(SemanticError::VariableNotDeclared(
+                token.line(),
+                token.starts_at(),
+                token.ends_at(),
+                token.lexeme(),
+            ))
         }
-        Err(SemanticError::VariableNotDeclared(
-            token.line(),
-            token.starts_at(),
-            token.ends_at(),
-            token.lexeme(),
-        ))
     }
 
     fn analyze_unary(
@@ -484,7 +545,12 @@ impl<'a> SemanticAnalyzer<'a> {
             Value::Boolean(_) => Type::Bool,
             Value::Number(_) => Type::Num,
             Value::Str(_) => Type::Str,
-            Value::Fun(fun) => Type::Fun(fun.params_types(), *fun.return_type()),
+            Value::Fun(fun) => Type::Fun(
+                SmntEnv::new(HashMap::default()),
+                fun.params_types(),
+                *fun.return_type(),
+                vec![],
+            ),
         }
     }
 
@@ -494,7 +560,9 @@ impl<'a> SemanticAnalyzer<'a> {
         args: &[Expr],
         original_expr: &Expr,
     ) -> Result<Type, SemanticError> {
-        if let Type::Fun(params_types, return_type) = self.analyze_one(callee)? {
+        if let Type::Fun(env, params_types, return_type, declared_keys) =
+            self.analyze_one(callee)?
+        {
             if params_types.len() != args.len() {
                 let (line, starts_at, ends_at) = original_expr.placement();
                 return Err(SemanticError::ArityMismatch(
@@ -504,11 +572,10 @@ impl<'a> SemanticAnalyzer<'a> {
                     params_types.len(),
                     args.len(),
                 ));
-            }
-
-            self.with_new_env(|analyzer| {
+            } else if !self.analyzing_function {
+                let old_env = std::mem::replace(&mut self.symbol_table, env);
                 for (arg, param_var_type) in args.iter().zip(&params_types) {
-                    let arg_type = analyzer.analyze_one(arg)?;
+                    let arg_type = self.analyze_one(arg)?;
 
                     let arg_var_type: VarType = arg_type.clone().into();
                     let param_type: Type = param_var_type.into();
@@ -521,13 +588,43 @@ impl<'a> SemanticAnalyzer<'a> {
                         ));
                     }
                 }
-
-                Ok(())
-            })?;
+                for key in &declared_keys {
+                    if self.get_var(&key).is_none() {
+                        let (line, starts_at, ends_at) = callee.placement();
+                        let fun_name = callee.get_token().lexeme();
+                        self.errors.push(Error::Semantic(SemanticError::UnboundVar(
+                            line,
+                            starts_at,
+                            ends_at,
+                            key.to_string(),
+                            fun_name,
+                        )));
+                    }
+                }
+                self.symbol_table = old_env;
+            }
             Ok((&return_type).into())
         } else {
             let (line, starts_at, ends_at) = callee.placement();
             Err(SemanticError::FunctionNotDeclared(line, starts_at, ends_at))
+        }
+    }
+
+    fn get_var(&mut self, id: &str) -> Option<Type> {
+        let x = self.symbol_table.get(id);
+
+        if let Some((var_type, defined)) = x {
+            if !self.analyzing_function {
+                if defined {
+                    Some(var_type)
+                } else {
+                    None
+                }
+            } else {
+                Some(var_type)
+            }
+        } else {
+            None
         }
     }
 }

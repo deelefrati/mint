@@ -104,6 +104,12 @@ pub enum Value {
     Fun(Callable),
 }
 
+impl Default for Value {
+    fn default() -> Self {
+        Value::Null
+    }
+}
+
 impl Value {
     pub fn to_bool(&self) -> bool {
         match self {
@@ -114,7 +120,7 @@ impl Value {
     }
 
     pub fn new_function(
-        env: Environment,
+        env: Environment<Value>,
         name: Token,
         params: Vec<(Token, VarType)>,
         body: Vec<Stmt>,
@@ -214,7 +220,7 @@ impl Expr {
 }
 #[derive(PartialEq, Clone, Debug)]
 pub struct Callable {
-    env: Environment,
+    env: Environment<Value>,
     name: Token,
     params: Vec<(Token, VarType)>,
     body: Vec<Stmt>,
@@ -237,7 +243,7 @@ impl Callable {
         self.params.len()
     }
 
-    pub fn env(&self) -> &Environment {
+    pub fn env(&self) -> &Environment<Value> {
         &self.env
     }
 
