@@ -105,15 +105,40 @@ impl<'a> SemanticAnalyzer<'a> {
         Ok(())
     }
 
+    fn hoist_fun_declaration(&mut self, stmts: &'a [Stmt]) -> Vec<&'a Stmt> {
+        //stmts.sort_by(|a, b| {
+        //    if matches!(b, Stmt::Function(_, _, _, _, _)) {
+        //        std::cmp::Ordering::Less
+        //    } else {
+        //        std::cmp::Ordering::Equal
+        //    }
+        //})
+        let mut funcs: Vec<&Stmt> = stmts
+            .iter()
+            .filter(|stmt| matches!(stmt, Stmt::Function(_, _, _, _, _)))
+            .collect();
+        let mut not_funcs: Vec<&Stmt> = stmts
+            .iter()
+            .filter(|stmt| match stmt {
+                Stmt::Function(_, _, _, _, _) => false,
+                _ => true,
+            })
+            .collect();
+        funcs.append(&mut not_funcs);
+        funcs
+    }
+
     pub fn analyze(
         &mut self,
         stmts: &'a [Stmt],
         fun_ret_type: Option<VarType>,
-    ) -> Result<(), Vec<Error>> {
+    ) -> Result<Vec<Stmt>, Vec<Error>> {
         if let Err(err) = self.declare_env_vars(stmts) {
             self.errors.push(Error::Semantic(err));
         }
-        for stmt in stmts {
+        let mut hoisted_stmts = self.hoist_fun_declaration(stmts);
+        for stmt in hoisted_stmts.clone() {
+            println!("{:?}", stmt);
             match stmt {
                 Stmt::ExprStmt(expr) => match self.analyze_one(&expr) {
                     Ok(t) => self.insert(&expr, t),
@@ -344,7 +369,8 @@ impl<'a> SemanticAnalyzer<'a> {
             }
         }
         if self.errors.is_empty() {
-            Ok(())
+            let x: Vec<Stmt> = hoisted_stmts.iter_mut().map(|s| s.clone()).collect();
+            Ok(x)
         } else {
             Err(self.errors.clone())
         }
@@ -353,16 +379,6 @@ impl<'a> SemanticAnalyzer<'a> {
     fn insert(&mut self, expr: &'a Expr, t: Type) {
         self.types.insert(expr, t);
     }
-
-    //fn insert_var(&mut self, id: &str, t: Type) -> Option<()> {
-    //    let last_env = self.symbol_table.last_mut().unwrap();
-    //    if last_env.contains_key(id) {
-    //        Some(())
-    //    } else {
-    //        last_env.insert(id.to_string(), t);
-    //        None
-    //    }
-    //}
 
     fn declare(&mut self, id: &str, t: Type) {
         self.symbol_table.define(id.to_string(), (t, false));
