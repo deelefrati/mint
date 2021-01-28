@@ -119,10 +119,7 @@ impl<'a> SemanticAnalyzer<'a> {
             .collect();
         let mut not_funcs: Vec<&Stmt> = stmts
             .iter()
-            .filter(|stmt| match stmt {
-                Stmt::Function(_, _, _, _, _) => false,
-                _ => true,
-            })
+            .filter(|stmt| !matches!(stmt, Stmt::Function(_, _, _, _, _)))
             .collect();
         funcs.append(&mut not_funcs);
         funcs
@@ -369,6 +366,7 @@ impl<'a> SemanticAnalyzer<'a> {
             }
         }
         if self.errors.is_empty() {
+            #[allow(clippy::map_clone)]
             let x: Vec<Stmt> = hoisted_stmts.iter_mut().map(|s| s.clone()).collect();
             Ok(x)
         } else {
