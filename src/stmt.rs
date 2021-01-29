@@ -16,4 +16,5 @@ pub enum Stmt {
         Option<Token>,
     ),
     Return(Token, Option<Expr>),
+    TypeStmt(Token, Vec<(Token, VarType)>),
 }

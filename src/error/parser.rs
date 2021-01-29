@@ -14,6 +14,7 @@ pub enum ParserError {
     IdentifierExpected(usize),
     Expected(usize, TokenType),
     ReturnTypeExpected(usize),
+    EmptyType, // TODO completar o erro
 }
 
 impl ParserError {
@@ -102,6 +103,7 @@ impl ParserError {
                 "Expected a return type".to_string(),
                 None,
             ),
+            ParserError::EmptyType => "empty type".to_string(),
         }
     }
 }

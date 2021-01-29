@@ -26,6 +26,7 @@ pub enum Type {
     Null,
     Str,
     Fun(SmntEnv, Vec<VarType>, VarType, Vec<String>),
+    MintType,
 }
 impl std::convert::From<&VarType> for Type {
     fn from(var_type: &VarType) -> Self {
@@ -135,7 +136,6 @@ impl<'a> SemanticAnalyzer<'a> {
         }
         let mut hoisted_stmts = self.hoist_fun_declaration(stmts);
         for stmt in hoisted_stmts.clone() {
-            println!("{:?}", stmt);
             match stmt {
                 Stmt::ExprStmt(expr) => match self.analyze_one(&expr) {
                     Ok(t) => self.insert(&expr, t),
@@ -363,6 +363,7 @@ impl<'a> SemanticAnalyzer<'a> {
                         }
                     }
                 },
+                Stmt::TypeStmt(_, _) => {}
             }
         }
         if self.errors.is_empty() {
@@ -396,6 +397,7 @@ impl<'a> SemanticAnalyzer<'a> {
             Expr::Literal((value, _)) => Ok(self.analyze_literal(value)),
             Expr::Variable(token, identifier) => self.analyze_var_expr(token, identifier),
             Expr::Call(callee, args) => self.analyze_call_expr(callee, args, expr),
+            Expr::Instantiate(_,_) => Instantiate 
         }
     }
 
@@ -565,6 +567,8 @@ impl<'a> SemanticAnalyzer<'a> {
                 *fun.return_type(),
                 vec![],
             ),
+            Value::Type(_) => Type::Null,
+            Value::TypeInstance(_) => 
         }
     }
 

@@ -5,7 +5,6 @@ use crate::{
     token::Token,
     token_type::{TokenType, VarType},
 };
-use std::vec::Vec;
 
 pub struct Parser<'a> {
     tokens: &'a [Token],
@@ -91,6 +90,8 @@ impl<'a> Parser<'a> {
             self.if_statement()
         } else if self.next_is(single(Function)).is_some() {
             self.fun()
+        } else if self.next_is(single(Type)).is_some() {
+            self.type_declaration()
         } else {
             self.statement()
         }
@@ -167,6 +168,32 @@ impl<'a> Parser<'a> {
         };
         Ok(Stmt::IfStmt(cond, then, else_))
     }
+
+    fn type_declaration(&mut self) -> Result<Stmt, ParserError> {
+        let identifier = self.consume(Identifier)?;
+        self.consume(Equal)?;
+        self.consume(LeftBrace)?;
+        let mut variables = vec![];
+        while self.next_is(single(RightBrace)).is_none() {
+            let id = self.consume(Identifier)?;
+            self.consume(Colon)?;
+            if let Some((var_type, _)) = self.next_is(|tt| match tt {
+                Num => Some(VarType::Number),
+                Str => Some(VarType::String),
+                Bool => Some(VarType::Boolean),
+                Null => Some(VarType::Null),
+                _ => None, // TODO tipos recursivos
+            }) {
+                variables.push((id, var_type));
+            }
+        }
+        self.consume(RightBrace)?;
+        if variables.is_empty() {
+            return Err(ParserError::EmptyType);
+        }
+        Ok(Stmt::TypeStmt(identifier, variables))
+    }
+
     fn var_declaration(&mut self) -> Result<Stmt, ParserError> {
         let identifier = self.consume(Identifier)?;
         if self.next_is(single(Colon)).is_some() {
@@ -181,6 +208,20 @@ impl<'a> Parser<'a> {
                 let expr = self.expression()?;
                 self.consume(Semicolon)?;
                 Ok(Stmt::VarStmt(identifier.lexeme(), Some(var_type), expr))
+            } else if let Some((_, id)) = self.next_is(|tt| match tt {
+                Identifier => Some(Identifier),
+                _ => None,
+            }) {
+                self.consume(Equal)?;
+                self.consume(LeftBrace)?;
+                let mut variables = vec![];
+                while self.next_is(single(RightBrace)).is_none() {
+                    let identifier = self.consume(Identifier)?;
+                    self.consume(Colon)?;
+                    let expr = self.expression()?;
+                    variables.push((identifier.lexeme(), expr));
+                }
+                return Ok(Stmt::ExprStmt(Expr::Instantiate(id, variables)));
             } else {
                 Err(ParserError::TypeNotDefined(self.current_line))
             }
@@ -351,8 +392,15 @@ impl<'a> Parser<'a> {
 
     fn call(&mut self) -> Result<Expr, ParserError> {
         let mut expr = self.primary()?;
-        while self.next_is(single(LeftParen)).is_some() {
-            expr = self.finish_call(expr)?;
+        loop {
+            if self.next_is(single(LeftParen)).is_some() {
+                expr = self.finish_call(expr)?;
+            } else if self.next_is(single(Dot)).is_some() {
+                let identifier = self.consume(Identifier)?;
+                expr = Expr::Get(Box::new(expr), identifier);
+            } else {
+                break;
+            }
         }
         Ok(expr)
     }

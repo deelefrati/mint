@@ -179,20 +179,21 @@ impl Interpreter {
     }
 
     fn eval_expr(&mut self, expr: &Expr) -> InterpreterResult {
-        use Expr::*;
         match expr {
-            Arithmetic(left, op_and_token, right) => {
+            Expr::Arithmetic(left, op_and_token, right) => {
                 self.eval_binary_arith_expr(left, op_and_token, right)
             }
-            Comparation(left, op_and_token, right) => {
+            Expr::Comparation(left, op_and_token, right) => {
                 self.eval_comp_expr(left, op_and_token, right)
             }
-            Logical(left, op_and_token, right) => self.eval_logical_expr(left, op_and_token, right),
-            Unary(op_and_token, right) => self.eval_unary_expr(op_and_token, right),
-            Grouping(new_expr) => self.eval_expr(new_expr),
-            Variable(token, identifier) => self.eval_var_expr(identifier, token),
-            Literal(value_and_token) => Ok(value_and_token.clone().0),
-            Call(callee, params) => {
+            Expr::Logical(left, op_and_token, right) => {
+                self.eval_logical_expr(left, op_and_token, right)
+            }
+            Expr::Unary(op_and_token, right) => self.eval_unary_expr(op_and_token, right),
+            Expr::Grouping(new_expr) => self.eval_expr(new_expr),
+            Expr::Variable(token, identifier) => self.eval_var_expr(identifier, token),
+            Expr::Literal(value_and_token) => Ok(value_and_token.clone().0),
+            Expr::Call(callee, params) => {
                 if let Value::Fun(fun) = self.eval_expr(callee)? {
                     if fun.arity() == params.len() {
                         let mut args = Vec::with_capacity(params.len());
@@ -213,6 +214,30 @@ impl Interpreter {
                 } else {
                     let (line, starts_at, ends_at) = callee.placement();
                     Err(RuntimeError::NotCallable(line, starts_at, ends_at))
+                }
+            }
+            Expr::Get(expr, _) => {
+                //let object = self.eval_expr(expr)?;
+                //match object {
+                //    Value::Type(mint_type) => mint_type.g
+                //    _ => None,
+                //}
+                Ok(Value::Null)
+            }
+            Expr::Instantiate(token, args) => {
+                if let Some(Value::Type(mint_type)) = self.environment.get(&token.lexeme()) {
+                    let mut values = vec![];
+                    for (arg, expr) in args {
+                        values.push((arg.to_string(), self.eval_expr(expr)?));
+                    }
+                    Ok(Value::TypeInstance(mint_type.call(&values)))
+                } else {
+                    Err(RuntimeError::NotInstantiable(
+                        token.line(),
+                        token.starts_at(),
+                        token.ends_at(),
+                        token.lexeme().clone(),
+                    ))
                 }
             }
         }
@@ -320,6 +345,12 @@ impl Interpreter {
             } else {
                 Value::Null
             })),
+            TypeStmt(token, _variables) => {
+                self.environment
+                    .define(token.lexeme(), Value::new_type(token.clone()));
+
+                Ok(())
+            }
         }
     }
 

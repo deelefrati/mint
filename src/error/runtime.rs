@@ -10,6 +10,7 @@ pub enum RuntimeError {
     NotCallable(usize, usize, usize),
     ArityMismatch(usize, usize, usize, usize, usize),
     Return(Value),
+    NotInstantiable(usize, usize, usize, String),
 }
 
 impl RuntimeError {
@@ -67,6 +68,17 @@ impl RuntimeError {
                 )
             }
             RuntimeError::Return(_) => "".to_string(),
+            RuntimeError::NotInstantiable(line, starts_at, ends_at, token) => {
+                static_error_template(
+                    error_type,
+                    source_vec,
+                    *line,
+                    Some(*starts_at),
+                    Some(*ends_at),
+                    format!("{} not instatiable", token),
+                    Some(print_marker(*starts_at, *ends_at, None)),
+                )
+            }
         }
     }
 }
