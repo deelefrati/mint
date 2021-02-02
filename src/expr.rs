@@ -6,7 +6,6 @@ use crate::stmt::Stmt;
 use crate::token::Token;
 use crate::token_type::VarType;
 use std::{
-    collections::HashMap,
     hash::{Hash, Hasher},
     ptr::hash,
 };
@@ -144,9 +143,6 @@ impl Value {
             return_type,
         })
     }
-    pub fn new_type(name: Token) -> Value {
-        Value::Type(MintType { name })
-    }
 }
 
 #[derive(Clone, PartialEq, Debug)]
@@ -159,7 +155,7 @@ pub enum Expr {
     Literal(OpWithToken<Value>),
     Variable(Token, String),
     Call(Box<Expr>, Vec<Expr>),
-    Instantiate(Token, Vec<(String, Expr)>),
+    Instantiate(Token, Vec<(Token, Expr)>),
     Get(Box<Expr>, Token),
 }
 

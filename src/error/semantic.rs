@@ -20,6 +20,10 @@ pub enum SemanticError {
     ReturnTopLever(usize, usize, usize),
     MissingReturnStmt(usize, usize, usize),
     UnboundVar(usize, usize, usize, String, String),
+    TypeNotIntantiable(usize, usize, usize, String),
+    TypeAlreadyDeclared(usize, usize, usize),
+    FieldNotDeclared(usize, usize, usize),
+    TypeNotDeclared(usize, usize, usize, String),
 }
 
 impl SemanticError {
@@ -145,6 +149,39 @@ impl SemanticError {
                             *starts_at,
                             *ends_at,
                             Some(&format!("'{}' is called before the of the definition of '{}'", fun_name, id))))),
+                SemanticError::TypeNotIntantiable(line, starts_at, ends_at, type_name) => static_error_template(
+                    error_type,
+                    source_vec,
+                    *line,
+                    Some(*starts_at),
+                    Some(*ends_at),
+                    format!("Type {} is not instantiable", type_name),
+                    Some(print_marker(*starts_at, *ends_at, None))),
+                SemanticError::TypeAlreadyDeclared(line, starts_at, ends_at) => static_error_template(
+                    error_type,
+                    source_vec,
+                    *line,
+                    Some(*starts_at),
+                    Some(*ends_at),
+                    "type already declared".to_string(),
+                    Some(print_marker(*starts_at, *ends_at, None))),
+                SemanticError::FieldNotDeclared(line, starts_at, ends_at) => static_error_template(
+                    error_type,
+                    source_vec,
+                    *line,
+                    Some(*starts_at),
+                    Some(*ends_at),
+                    "type already declared".to_string(),
+                    Some(print_marker(*starts_at, *ends_at, None))),
+            SemanticError::TypeNotDeclared(line, starts_at, ends_at, type_name) => static_error_template(
+                    error_type,
+                    source_vec,
+                    *line,
+                    Some(*starts_at),
+                    Some(*ends_at),
+                    format!("Attempting to instantiate an undeclared type '{}'", type_name),
+                    Some(print_marker(*starts_at, *ends_at, None)),
+                ),
         }
     }
 }

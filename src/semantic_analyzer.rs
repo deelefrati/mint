@@ -2,6 +2,7 @@ use crate::{
     environment::Environment,
     error::{semantic::SemanticError, Error},
     expr::*,
+    mint_type::MintType,
     stmt::Stmt,
     token::Token,
     token_type::VarType,
@@ -16,6 +17,7 @@ impl std::fmt::Display for Type {
             Type::Bool => write!(f, "Boolean"),
             Type::Str => write!(f, "String"),
             Type::Fun(_, _, _, _) => write!(f, "Function"),
+            Type::UserType(mint_type) => write!(f, "{}", mint_type.name.lexeme()),
         }
     }
 }
@@ -26,7 +28,7 @@ pub enum Type {
     Null,
     Str,
     Fun(SmntEnv, Vec<VarType>, VarType, Vec<String>),
-    MintType,
+    UserType(MintType),
 }
 impl std::convert::From<&VarType> for Type {
     fn from(var_type: &VarType) -> Self {
@@ -41,6 +43,7 @@ impl std::convert::From<&VarType> for Type {
                 VarType::Null,
                 Vec::default(),
             ),
+            VarType::UserType => Type::UserType(MintType::default()),
         }
     }
 }
@@ -49,6 +52,7 @@ pub struct SemanticAnalyzer<'a> {
     symbol_table: SmntEnv,
     errors: Vec<Error>,
     analyzing_function: bool,
+    hoisting: bool,
 }
 
 impl<'a> Default for SemanticAnalyzer<'a> {
@@ -63,6 +67,7 @@ impl<'a> SemanticAnalyzer<'a> {
             symbol_table: SmntEnv::new(HashMap::default()),
             errors: vec![],
             analyzing_function: false,
+            hoisting: false,
         }
     }
 
@@ -94,6 +99,7 @@ impl<'a> SemanticAnalyzer<'a> {
             _ => None,
         });
 
+        self.hoisting = true;
         for (id, var_type, expr) in vec {
             if var_type.is_none() {
                 let evaluated_type = self.analyze_one(expr)?;
@@ -102,18 +108,12 @@ impl<'a> SemanticAnalyzer<'a> {
                 self.declare(&id, var_type.as_ref().unwrap().into());
             }
         }
+        self.hoisting = false;
 
         Ok(())
     }
 
     fn hoist_fun_declaration(&mut self, stmts: &'a [Stmt]) -> Vec<&'a Stmt> {
-        //stmts.sort_by(|a, b| {
-        //    if matches!(b, Stmt::Function(_, _, _, _, _)) {
-        //        std::cmp::Ordering::Less
-        //    } else {
-        //        std::cmp::Ordering::Equal
-        //    }
-        //})
         let mut funcs: Vec<&Stmt> = stmts
             .iter()
             .filter(|stmt| matches!(stmt, Stmt::Function(_, _, _, _, _)))
@@ -363,9 +363,22 @@ impl<'a> SemanticAnalyzer<'a> {
                         }
                     }
                 },
-                Stmt::TypeStmt(_, _) => {}
+                Stmt::TypeStmt(token, attrs) => {
+                    if let Some((_, true)) = self.define(
+                        &token.lexeme(),
+                        Type::UserType(MintType::new(token.clone(), attrs)),
+                    ) {
+                        self.errors
+                            .push(Error::Semantic(SemanticError::TypeAlreadyDeclared(
+                                token.line(),
+                                token.starts_at(),
+                                token.ends_at(),
+                            )))
+                    }
+                }
             }
         }
+
         if self.errors.is_empty() {
             #[allow(clippy::map_clone)]
             let x: Vec<Stmt> = hoisted_stmts.iter_mut().map(|s| s.clone()).collect();
@@ -397,7 +410,59 @@ impl<'a> SemanticAnalyzer<'a> {
             Expr::Literal((value, _)) => Ok(self.analyze_literal(value)),
             Expr::Variable(token, identifier) => self.analyze_var_expr(token, identifier),
             Expr::Call(callee, args) => self.analyze_call_expr(callee, args, expr),
-            Expr::Instantiate(_,_) => Instantiate 
+            Expr::Instantiate(token, attributes) => self.analyze_instatiation(token, attributes),
+            Expr::Get(_, _) => Ok(Type::Null),
+        }
+    }
+
+    fn analyze_instatiation(
+        &mut self,
+        token: &Token,
+        attributes: &[(Token, Expr)],
+    ) -> Result<Type, SemanticError> {
+        if let Some(type_) = self.get_var(&token.lexeme()) {
+            match type_ {
+                Type::UserType(mint_type) => {
+                    for (token, expr) in attributes {
+                        let expr_type = self.analyze_one(expr)?;
+                        match mint_type.attrs.get(&token.lexeme()) {
+                            Some(attr_type) => {
+                                if expr_type != attr_type.into() {
+                                    let (line, starts_at, ends_at) = expr.placement();
+                                    return Err(SemanticError::MismatchedTypes(
+                                        line,
+                                        starts_at,
+                                        ends_at,
+                                        attr_type.into(),
+                                        expr_type,
+                                    ));
+                                }
+                            }
+                            None => {
+                                return Err(SemanticError::FieldNotDeclared(
+                                    token.line(),
+                                    token.starts_at(),
+                                    token.starts_at(),
+                                ))
+                            }
+                        }
+                    }
+                    Ok(Type::UserType(mint_type))
+                }
+                _ => Err(SemanticError::TypeNotIntantiable(
+                    token.line(),
+                    token.starts_at(),
+                    token.ends_at(),
+                    token.lexeme(),
+                )),
+            }
+        } else {
+            Err(SemanticError::TypeNotDeclared(
+                token.line(),
+                token.starts_at(),
+                token.ends_at(),
+                token.lexeme(),
+            ))
         }
     }
 
@@ -568,7 +633,7 @@ impl<'a> SemanticAnalyzer<'a> {
                 vec![],
             ),
             Value::Type(_) => Type::Null,
-            Value::TypeInstance(_) => 
+            Value::TypeInstance(_) => Type::Null,
         }
     }
 
@@ -632,7 +697,7 @@ impl<'a> SemanticAnalyzer<'a> {
         let x = self.symbol_table.get(id);
 
         if let Some((var_type, defined)) = x {
-            if !self.analyzing_function {
+            if !self.analyzing_function && !self.hoisting {
                 if defined {
                     Some(var_type)
                 } else {

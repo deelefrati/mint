@@ -186,8 +186,9 @@ impl<'a> Parser<'a> {
             }) {
                 variables.push((id, var_type));
             }
+            self.consume(Semicolon)?;
         }
-        self.consume(RightBrace)?;
+        self.consume(Semicolon)?;
         if variables.is_empty() {
             return Err(ParserError::EmptyType);
         }
@@ -219,8 +220,10 @@ impl<'a> Parser<'a> {
                     let identifier = self.consume(Identifier)?;
                     self.consume(Colon)?;
                     let expr = self.expression()?;
-                    variables.push((identifier.lexeme(), expr));
+                    self.consume(Comma)?;
+                    variables.push((identifier, expr));
                 }
+                self.consume(Semicolon)?;
                 return Ok(Stmt::ExprStmt(Expr::Instantiate(id, variables)));
             } else {
                 Err(ParserError::TypeNotDefined(self.current_line))

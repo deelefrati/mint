@@ -2,6 +2,7 @@ use crate::{
     environment::Environment,
     error::{runtime::RuntimeError, Error},
     expr::*,
+    mint_type::MintType,
     stmt::*,
     token::Token,
 };
@@ -216,7 +217,7 @@ impl Interpreter {
                     Err(RuntimeError::NotCallable(line, starts_at, ends_at))
                 }
             }
-            Expr::Get(expr, _) => {
+            Expr::Get(_expr, _) => {
                 //let object = self.eval_expr(expr)?;
                 //match object {
                 //    Value::Type(mint_type) => mint_type.g
@@ -228,7 +229,7 @@ impl Interpreter {
                 if let Some(Value::Type(mint_type)) = self.environment.get(&token.lexeme()) {
                     let mut values = vec![];
                     for (arg, expr) in args {
-                        values.push((arg.to_string(), self.eval_expr(expr)?));
+                        values.push((arg.clone(), self.eval_expr(expr)?));
                     }
                     Ok(Value::TypeInstance(mint_type.call(&values)))
                 } else {
@@ -345,9 +346,11 @@ impl Interpreter {
             } else {
                 Value::Null
             })),
-            TypeStmt(token, _variables) => {
-                self.environment
-                    .define(token.lexeme(), Value::new_type(token.clone()));
+            TypeStmt(token, args) => {
+                self.environment.define(
+                    token.lexeme(),
+                    Value::Type(MintType::new(token.clone(), args)),
+                );
 
                 Ok(())
             }

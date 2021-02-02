@@ -52,6 +52,13 @@ impl std::fmt::Display for TokenType {
         }
     }
 }
+
+impl Default for TokenType {
+    fn default() -> Self {
+        TokenType::Blank
+    }
+}
+
 #[derive(Debug, PartialEq, Clone)]
 pub enum TokenType {
     // Single-character tokens.
@@ -118,6 +125,7 @@ pub enum VarType {
     Boolean,
     Null,
     Function,
+    UserType,
 }
 impl From<Type> for VarType {
     fn from(x: Type) -> Self {
@@ -127,6 +135,7 @@ impl From<Type> for VarType {
             Type::Null => VarType::Null,
             Type::Str => VarType::String,
             Type::Fun(_, _, _, _) => VarType::Function,
+            Type::UserType(_) => VarType::UserType,
         }
     }
 }
