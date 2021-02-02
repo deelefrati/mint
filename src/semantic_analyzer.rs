@@ -116,17 +116,17 @@ impl<'a> SemanticAnalyzer<'a> {
         Ok(())
     }
 
-    fn hoist_fun_declaration(&mut self, stmts: &'a [Stmt]) -> Vec<&'a Stmt> {
-        let mut funcs: Vec<&Stmt> = stmts
+    fn hoist_declaration(&mut self, stmts: &'a [Stmt]) -> Vec<&'a Stmt> {
+        let mut declarations: Vec<&Stmt> = stmts
             .iter()
-            .filter(|stmt| matches!(stmt, Stmt::Function(_, _, _, _, _)))
+            .filter(|stmt| matches!(stmt, Stmt::Function(_, _, _, _, _) | Stmt::TypeStmt(_,_)))
             .collect();
-        let mut not_funcs: Vec<&Stmt> = stmts
+        let mut not_declarations: Vec<&Stmt> = stmts
             .iter()
-            .filter(|stmt| !matches!(stmt, Stmt::Function(_, _, _, _, _)))
+            .filter(|stmt| !matches!(stmt, Stmt::Function(_, _, _, _, _)| Stmt::TypeStmt(_,_) ))
             .collect();
-        funcs.append(&mut not_funcs);
-        funcs
+        declarations.append(&mut not_declarations);
+        declarations
     }
 
     pub fn analyze(
@@ -137,7 +137,7 @@ impl<'a> SemanticAnalyzer<'a> {
         if let Err(err) = self.declare_env_vars(stmts) {
             self.errors.push(Error::Semantic(err));
         }
-        let mut hoisted_stmts = self.hoist_fun_declaration(stmts);
+        let mut hoisted_stmts = self.hoist_declaration(stmts);
         for stmt in hoisted_stmts.clone() {
             match stmt {
                 Stmt::ExprStmt(expr) => match self.analyze_one(&expr) {

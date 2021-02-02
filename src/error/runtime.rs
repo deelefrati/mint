@@ -11,6 +11,7 @@ pub enum RuntimeError {
     ArityMismatch(usize, usize, usize, usize, usize),
     Return(Value),
     NotInstantiable(usize, usize, usize, String),
+    PropertyDoesNotExist(usize, usize, usize, String),
 }
 
 impl RuntimeError {
@@ -76,6 +77,17 @@ impl RuntimeError {
                     Some(*starts_at),
                     Some(*ends_at),
                     format!("{} not instatiable", token),
+                    Some(print_marker(*starts_at, *ends_at, None)),
+                )
+            }
+            RuntimeError::PropertyDoesNotExist(line, starts_at, ends_at, token) => {
+                static_error_template(
+                    error_type,
+                    source_vec,
+                    *line,
+                    Some(*starts_at),
+                    Some(*ends_at),
+                    format!("Property {} does not exist", token),
                     Some(print_marker(*starts_at, *ends_at, None)),
                 )
             }

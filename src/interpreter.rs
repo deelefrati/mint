@@ -204,7 +204,12 @@ impl Interpreter {
         let object = self.eval_expr(expr)?;
         match object {
             Value::TypeInstance(mint_instance) => Ok(mint_instance.get(&token).unwrap().clone()),
-            _ => panic!("cannot get instance"), // TODO error
+            _ => Err(RuntimeError::PropertyDoesNotExist(
+                token.line(),
+                token.starts_at(),
+                token.ends_at(),
+                token.lexeme(),
+            )),
         }
     }
 
