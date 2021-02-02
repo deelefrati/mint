@@ -155,7 +155,7 @@ pub enum Expr {
     Literal(OpWithToken<Value>),
     Variable(Token, String),
     Call(Box<Expr>, Vec<Expr>),
-    Instantiate(Token, Vec<(Token, Expr)>),
+    Instantiate(Token,Token, Vec<(Token, Expr)>),
     Get(Box<Expr>, Token),
 }
 
@@ -187,7 +187,7 @@ impl Expr {
             Expr::Variable(token, _) => &token,
             Expr::Call(callee, _) => callee.get_token(),
             Expr::Get(_, token) => &token,
-            Expr::Instantiate(token, _) => &token,
+            Expr::Instantiate(_, token, _) => &token,
         }
     }
 
@@ -220,7 +220,7 @@ impl Expr {
                 (x, y + 1)
             }
             Expr::Get(expr, _) => expr.get_expr_placement(),
-            Expr::Instantiate(token, _) => (token.starts_at(), token.ends_at()),
+            Expr::Instantiate(_,token, _) => (token.starts_at(), token.ends_at()),
         }
     }
 

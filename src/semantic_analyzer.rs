@@ -8,7 +8,9 @@ use crate::{
     token_type::VarType,
 };
 use std::collections::HashMap;
+
 type SmntEnv = Environment<(Type, bool)>;
+
 impl std::fmt::Display for Type {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         match self {
@@ -21,6 +23,7 @@ impl std::fmt::Display for Type {
         }
     }
 }
+
 #[derive(Debug, PartialEq, Clone)]
 pub enum Type {
     Num,
@@ -30,6 +33,7 @@ pub enum Type {
     Fun(SmntEnv, Vec<VarType>, VarType, Vec<String>),
     UserType(MintType),
 }
+
 impl std::convert::From<&VarType> for Type {
     fn from(var_type: &VarType) -> Self {
         match var_type {
@@ -98,7 +102,6 @@ impl<'a> SemanticAnalyzer<'a> {
             Stmt::VarStmt(id, var_type, expr) => Some((id, var_type, expr)),
             _ => None,
         });
-
         self.hoisting = true;
         for (id, var_type, expr) in vec {
             if var_type.is_none() {
@@ -410,13 +413,14 @@ impl<'a> SemanticAnalyzer<'a> {
             Expr::Literal((value, _)) => Ok(self.analyze_literal(value)),
             Expr::Variable(token, identifier) => self.analyze_var_expr(token, identifier),
             Expr::Call(callee, args) => self.analyze_call_expr(callee, args, expr),
-            Expr::Instantiate(token, attributes) => self.analyze_instatiation(token, attributes),
+            Expr::Instantiate(var_token, type_token, attributes) => self.analyze_instatiation(var_token, type_token, attributes),
             Expr::Get(_, _) => Ok(Type::Null),
         }
     }
 
     fn analyze_instatiation(
         &mut self,
+        var_token: &Token,
         token: &Token,
         attributes: &[(Token, Expr)],
     ) -> Result<Type, SemanticError> {
@@ -447,21 +451,22 @@ impl<'a> SemanticAnalyzer<'a> {
                             }
                         }
                     }
+                    self.define(&var_token.lexeme(), Type::UserType(mint_type.clone()));
                     Ok(Type::UserType(mint_type))
                 }
                 _ => Err(SemanticError::TypeNotIntantiable(
-                    token.line(),
-                    token.starts_at(),
-                    token.ends_at(),
-                    token.lexeme(),
+                    var_token.line(),
+                    var_token.starts_at(),
+                    var_token.ends_at(),
+                    var_token.lexeme(),
                 )),
             }
         } else {
             Err(SemanticError::TypeNotDeclared(
-                token.line(),
-                token.starts_at(),
-                token.ends_at(),
-                token.lexeme(),
+                var_token.line(),
+                var_token.starts_at(),
+                var_token.ends_at(),
+                var_token.lexeme(),
             ))
         }
     }
