@@ -8,6 +8,7 @@ use runtime::RuntimeError;
 use scanner::ScannerError;
 use semantic::SemanticError;
 
+#[allow(clippy::large_enum_variant)]
 #[derive(Debug, PartialEq, Clone)]
 pub enum Error {
     Input(String),

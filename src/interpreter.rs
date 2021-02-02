@@ -237,7 +237,7 @@ impl Interpreter {
                         token.line(),
                         token.starts_at(),
                         token.ends_at(),
-                        token.lexeme().clone(),
+                        token.lexeme(),
                     ))
                 }
             }
