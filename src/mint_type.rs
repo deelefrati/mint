@@ -14,7 +14,7 @@ impl MintType {
     pub fn new(name: Token, attrs: &[(Token, VarType)]) -> Self {
         let mut hash_attrs = HashMap::default();
         attrs.iter().for_each(|(token, var_type)| {
-            hash_attrs.insert(token.lexeme(), *var_type);
+            hash_attrs.insert(token.lexeme(), var_type.clone());
         });
 
         Self {
@@ -42,5 +42,7 @@ impl MintInstance {
         instance
     }
 
-    //pub fn get(token: Token) -
+    pub fn get(&self, name: &Token) -> Option<&Value> {
+        self.fields.get(&name.lexeme())
+    }
 }

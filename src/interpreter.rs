@@ -195,60 +195,67 @@ impl Interpreter {
             Expr::Variable(token, identifier) => self.eval_var_expr(identifier, token),
             Expr::Literal(value_and_token) => Ok(value_and_token.clone().0),
             Expr::Call(callee, params) => self.eval_call(expr, callee, params),
-            Expr::Get(_expr, _) => {
-                //let object = self.eval_expr(expr)?;
-                //match object {
-                //    Value::Type(mint_type) => mint_type.g
-                //    _ => None,
-                //}
-                Ok(Value::Null)
-            }
-            Expr::Instantiate(var_token,type_token, args) => {
-                if let Some(Value::Type(mint_type)) = self.environment.get(&type_token.lexeme()) {
-                    let mut values = vec![];
-                    for (arg, expr) in args {
-                        values.push((arg.clone(), self.eval_expr(expr)?));
-                    }
-                    self.environment.define(
-                        var_token.lexeme(),
-                        Value::TypeInstance(mint_type.call(&values))
-                    );
-                    Ok(Value::TypeInstance(mint_type.call(&values)))
-                } else {
-                    Err(RuntimeError::NotInstantiable(
-                        type_token.line(),
-                        type_token.starts_at(),
-                        type_token.ends_at(),
-                        type_token.lexeme(),
-                    ))
-                }
-            }
+            Expr::Get(expr, token) => self.eval_get(expr, token),
+            Expr::Instantiate(type_token, args) => self.eval_instantiate(type_token, args),
         }
     }
 
-    fn eval_call(&mut self, expr: &Expr, callee: &Box<Expr>, params: &Vec<Expr>) -> Result<Value, RuntimeError> {
-                if let Value::Fun(fun) = self.eval_expr(callee)? {
-                    if fun.arity() == params.len() {
-                        let mut args = Vec::with_capacity(params.len());
-                        for expr in params {
-                            args.push(self.eval_expr(expr)?);
-                        }
-                        fun.call(self, args.as_slice())
-                    } else {
-                        let (line, starts_at, ends_at) = expr.placement();
-                        Err(RuntimeError::ArityMismatch(
-                            line,
-                            starts_at,
-                            ends_at,
-                            fun.arity(),
-                            params.len(),
-                        ))
-                    }
-                } else {
-                    let (line, starts_at, ends_at) = callee.placement();
-                    Err(RuntimeError::NotCallable(line, starts_at, ends_at))
-                }
+    fn eval_get(&mut self, expr: &Expr, token: &Token) -> InterpreterResult {
+        let object = self.eval_expr(expr)?;
+        match object {
+            Value::TypeInstance(mint_instance) => Ok(mint_instance.get(&token).unwrap().clone()),
+            _ => panic!("cannot get instance"), // TODO error
+        }
+    }
 
+    fn eval_instantiate(
+        &mut self,
+        type_token: &Token,
+        args: &[(Token, Expr)],
+    ) -> InterpreterResult {
+        if let Some(Value::Type(mint_type)) = self.environment.get(&type_token.lexeme()) {
+            let mut values = vec![];
+            for (arg, expr) in args {
+                values.push((arg.clone(), self.eval_expr(expr)?));
+            }
+            Ok(Value::TypeInstance(mint_type.call(&values)))
+        } else {
+            Err(RuntimeError::NotInstantiable(
+                type_token.line(),
+                type_token.starts_at(),
+                type_token.ends_at(),
+                type_token.lexeme(),
+            ))
+        }
+    }
+
+    fn eval_call(
+        &mut self,
+        expr: &Expr,
+        callee: &Expr,
+        params: &[Expr],
+    ) -> Result<Value, RuntimeError> {
+        if let Value::Fun(fun) = self.eval_expr(callee)? {
+            if fun.arity() == params.len() {
+                let mut args = Vec::with_capacity(params.len());
+                for expr in params {
+                    args.push(self.eval_expr(expr)?);
+                }
+                fun.call(self, args.as_slice())
+            } else {
+                let (line, starts_at, ends_at) = expr.placement();
+                Err(RuntimeError::ArityMismatch(
+                    line,
+                    starts_at,
+                    ends_at,
+                    fun.arity(),
+                    params.len(),
+                ))
+            }
+        } else {
+            let (line, starts_at, ends_at) = callee.placement();
+            Err(RuntimeError::NotCallable(line, starts_at, ends_at))
+        }
     }
 
     pub fn eval_func(&mut self, fun: &Callable, args: &[Value]) -> Result<Value, RuntimeError> {
@@ -275,7 +282,6 @@ impl Interpreter {
 
     fn eval_var_stmt(&mut self, identifier: &str, expr: &Expr) -> Result<(), RuntimeError> {
         let value = self.eval_expr(expr)?;
-
         self.environment.define(identifier.to_string(), value);
         Ok(())
     }
@@ -342,7 +348,7 @@ impl Interpreter {
                         token.clone(),
                         params.clone(),
                         body.clone(),
-                        *return_type,
+                        return_type.clone(),
                     ),
                 );
                 Ok(())

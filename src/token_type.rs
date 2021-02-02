@@ -1,4 +1,4 @@
-use crate::semantic_analyzer::Type;
+use crate::{semantic_analyzer::Type, token::Token};
 impl std::fmt::Display for TokenType {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         match self {
@@ -118,14 +118,14 @@ pub enum TokenType {
     Eof,
 }
 
-#[derive(Debug, PartialEq, Clone, Copy)]
+#[derive(Debug, PartialEq, Clone)]
 pub enum VarType {
     Number,
     String,
     Boolean,
     Null,
     Function,
-    UserType,
+    UserType(Token),
 }
 impl From<Type> for VarType {
     fn from(x: Type) -> Self {
@@ -135,7 +135,7 @@ impl From<Type> for VarType {
             Type::Null => VarType::Null,
             Type::Str => VarType::String,
             Type::Fun(_, _, _, _) => VarType::Function,
-            Type::UserType(_) => VarType::UserType,
+            Type::UserType(_) => VarType::UserType(Token::default()),
         }
     }
 }

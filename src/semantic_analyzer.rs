@@ -47,7 +47,7 @@ impl std::convert::From<&VarType> for Type {
                 VarType::Null,
                 Vec::default(),
             ),
-            VarType::UserType => Type::UserType(MintType::default()),
+            VarType::UserType(_) => Type::UserType(MintType::default()),
         }
     }
 }
@@ -213,6 +213,32 @@ impl<'a> SemanticAnalyzer<'a> {
                                 ));
                             }
                         }
+                        (Some(VarType::UserType(user_type)), Type::UserType(mint_type)) => {
+                            if user_type.lexeme() != mint_type.name.lexeme() {
+                                self.errors.push(Error::Semantic(
+                                    SemanticError::IncompatibleDeclaration(
+                                        mint_type.name.line(),
+                                        mint_type.name.starts_at(),
+                                        mint_type.name.ends_at(),
+                                        var_type.clone().unwrap(),
+                                        t.clone(),
+                                    ),
+                                ));
+                            }
+                            if let Some((_, true)) =
+                                self.define(var_name, Type::UserType(mint_type))
+                            {
+                                let (line, starts_at, ends_at) = expr.placement();
+                                self.errors.push(Error::Semantic(
+                                    SemanticError::VariableOverwrited(
+                                        line,
+                                        starts_at,
+                                        ends_at,
+                                        var_name.clone(),
+                                    ),
+                                ));
+                            }
+                        }
                         (None, _) => {
                             if let Some((_, true)) = self.define(var_name, t) {
                                 let (line, starts_at, ends_at) = expr.placement();
@@ -230,7 +256,11 @@ impl<'a> SemanticAnalyzer<'a> {
                             let (line, starts_at, ends_at) = expr.placement();
                             self.errors.push(Error::Semantic(
                                 SemanticError::IncompatibleDeclaration(
-                                    line, starts_at, ends_at, *expected, found,
+                                    line,
+                                    starts_at,
+                                    ends_at,
+                                    expected.clone(),
+                                    found,
                                 ),
                             ))
                         }
@@ -238,7 +268,7 @@ impl<'a> SemanticAnalyzer<'a> {
                     Err(semantic_error) => self.errors.push(Error::Semantic(semantic_error)),
                 },
                 Stmt::Block(stmts) => self.with_new_env(|analyzer| {
-                    if let Err(nested_errors) = analyzer.analyze(stmts, fun_ret_type) {
+                    if let Err(nested_errors) = analyzer.analyze(stmts, fun_ret_type.clone()) {
                         for err in nested_errors {
                             analyzer.errors.push(err);
                         }
@@ -250,23 +280,23 @@ impl<'a> SemanticAnalyzer<'a> {
                         Err(semantic_error) => self.errors.push(Error::Semantic(semantic_error)),
                     }
                     self.with_new_env(|analyzer| {
-                        analyzer.analyze(then, fun_ret_type).ok();
+                        analyzer.analyze(then, fun_ret_type.clone()).ok();
                     });
                     self.with_new_env(|analyzer| {
-                        analyzer.analyze(else_, fun_ret_type).ok();
+                        analyzer.analyze(else_, fun_ret_type.clone()).ok();
                     });
                 }
                 Stmt::Function(token, params, body, return_type, return_token) => {
                     let param_types = params
                         .iter()
-                        .map(|&(_, param_type)| param_type)
+                        .map(|(_, param_type)| param_type.clone())
                         .collect::<Vec<VarType>>();
                     self.declare(
                         &token.lexeme(),
                         Type::Fun(
                             SmntEnv::new(HashMap::default()),
                             param_types.clone(),
-                            *return_type,
+                            return_type.clone(),
                             vec![],
                         ),
                     );
@@ -284,7 +314,7 @@ impl<'a> SemanticAnalyzer<'a> {
                                 ));
                             }
                         }
-                        analyzer.analyze(body, Some(*return_type)).ok();
+                        analyzer.analyze(body, Some(return_type.clone())).ok();
 
                         (
                             analyzer.symbol_table.clone(),
@@ -296,7 +326,7 @@ impl<'a> SemanticAnalyzer<'a> {
                         Type::Fun(
                             fun_env.clone(),
                             param_types.clone(),
-                            *return_type,
+                            return_type.clone(),
                             declared_keys.clone(),
                         ),
                     ) {
@@ -321,7 +351,7 @@ impl<'a> SemanticAnalyzer<'a> {
                 }
                 Stmt::Return(token, expr) => match expr {
                     Some(expr) => {
-                        if let Some(fun_ret_t) = fun_ret_type {
+                        if let Some(fun_ret_t) = fun_ret_type.clone() {
                             match self.analyze_one(&expr) {
                                 Ok(t) => {
                                     let type_: VarType = t.clone().into();
@@ -352,7 +382,7 @@ impl<'a> SemanticAnalyzer<'a> {
                         }
                     }
                     None => {
-                        if let Some(fun_ret_t) = fun_ret_type {
+                        if let Some(fun_ret_t) = fun_ret_type.clone() {
                             if fun_ret_t != VarType::Null {
                                 self.errors
                                     .push(Error::Semantic(SemanticError::MismatchedTypes(
@@ -413,14 +443,15 @@ impl<'a> SemanticAnalyzer<'a> {
             Expr::Literal((value, _)) => Ok(self.analyze_literal(value)),
             Expr::Variable(token, identifier) => self.analyze_var_expr(token, identifier),
             Expr::Call(callee, args) => self.analyze_call_expr(callee, args, expr),
-            Expr::Instantiate(var_token, type_token, attributes) => self.analyze_instatiation(var_token, type_token, attributes),
+            Expr::Instantiate(type_token, attributes) => {
+                self.analyze_instatiation(type_token, attributes)
+            }
             Expr::Get(_, _) => Ok(Type::Null),
         }
     }
 
     fn analyze_instatiation(
         &mut self,
-        var_token: &Token,
         token: &Token,
         attributes: &[(Token, Expr)],
     ) -> Result<Type, SemanticError> {
@@ -451,22 +482,21 @@ impl<'a> SemanticAnalyzer<'a> {
                             }
                         }
                     }
-                    self.define(&var_token.lexeme(), Type::UserType(mint_type.clone()));
                     Ok(Type::UserType(mint_type))
                 }
                 _ => Err(SemanticError::TypeNotIntantiable(
-                    var_token.line(),
-                    var_token.starts_at(),
-                    var_token.ends_at(),
-                    var_token.lexeme(),
+                    token.line(),
+                    token.starts_at(),
+                    token.ends_at(),
+                    token.lexeme(),
                 )),
             }
         } else {
             Err(SemanticError::TypeNotDeclared(
-                var_token.line(),
-                var_token.starts_at(),
-                var_token.ends_at(),
-                var_token.lexeme(),
+                token.line(),
+                token.starts_at(),
+                token.ends_at(),
+                token.lexeme(),
             ))
         }
     }
@@ -634,7 +664,7 @@ impl<'a> SemanticAnalyzer<'a> {
             Value::Fun(fun) => Type::Fun(
                 SmntEnv::new(HashMap::default()),
                 fun.params_types(),
-                *fun.return_type(),
+                fun.return_type().clone(),
                 vec![],
             ),
             Value::Type(_) => Type::Null,

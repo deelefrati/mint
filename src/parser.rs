@@ -224,7 +224,11 @@ impl<'a> Parser<'a> {
                     variables.push((identifier, expr));
                 }
                 self.consume(Semicolon)?;
-                Ok(Stmt::ExprStmt(Expr::Instantiate(identifier, id, variables)))
+                Ok(Stmt::VarStmt(
+                    identifier.lexeme(),
+                    Some(VarType::UserType(id.clone())),
+                    Expr::Instantiate(id, variables),
+                ))
             } else {
                 Err(ParserError::TypeNotDefined(self.current_line))
             }
