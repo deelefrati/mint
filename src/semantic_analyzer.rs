@@ -116,11 +116,12 @@ impl<'a> SemanticAnalyzer<'a> {
         Ok(())
     }
 
-    fn hoist_declaration(&mut self, stmts: &'a [Stmt]) -> Vec<&'a Stmt> {
+    fn hoist_declarations(&mut self, stmts: &'a [Stmt]) -> Vec<&'a Stmt> {
         let mut declarations: Vec<&Stmt> = stmts
             .iter()
             .filter(|stmt| matches!(stmt, Stmt::Function(_, _, _, _, _) | Stmt::TypeStmt(_,_)))
             .collect();
+        println!("{:?} ", declarations);
         let mut not_declarations: Vec<&Stmt> = stmts
             .iter()
             .filter(|stmt| !matches!(stmt, Stmt::Function(_, _, _, _, _)| Stmt::TypeStmt(_,_) ))
@@ -137,7 +138,7 @@ impl<'a> SemanticAnalyzer<'a> {
         if let Err(err) = self.declare_env_vars(stmts) {
             self.errors.push(Error::Semantic(err));
         }
-        let mut hoisted_stmts = self.hoist_declaration(stmts);
+        let mut hoisted_stmts = self.hoist_declarations(stmts);
         for stmt in hoisted_stmts.clone() {
             match stmt {
                 Stmt::ExprStmt(expr) => match self.analyze_one(&expr) {
@@ -354,17 +355,34 @@ impl<'a> SemanticAnalyzer<'a> {
                         if let Some(fun_ret_t) = fun_ret_type.clone() {
                             match self.analyze_one(&expr) {
                                 Ok(t) => {
-                                    let type_: VarType = t.clone().into();
-                                    if type_ != fun_ret_t {
-                                        self.errors.push(Error::Semantic(
-                                            SemanticError::MismatchedTypes(
-                                                token.line(),
-                                                token.starts_at(),
-                                                token.ends_at(),
-                                                (&fun_ret_t).into(),
-                                                t.clone(),
-                                            ),
-                                        ));
+                                    match (t.clone(), fun_ret_t.clone()) {
+                                        (Type::UserType(mint_type), VarType::UserType(token)) => {
+                                            if mint_type.name.lexeme() != token.lexeme() {
+                                                self.errors.push(Error::Semantic(
+                                                    SemanticError::MismatchedTypes(
+                                                        token.line(),
+                                                        token.starts_at(),
+                                                        token.ends_at(),
+                                                        (&fun_ret_t).into(),
+                                                        t.clone(),
+                                                    ),
+                                                ));
+                                            }
+                                        }
+                                        (_, _) => {
+                                            let type_: VarType = t.clone().into();
+                                            if type_ != fun_ret_t {
+                                                self.errors.push(Error::Semantic(
+                                                    SemanticError::MismatchedTypes(
+                                                        token.line(),
+                                                        token.starts_at(),
+                                                        token.ends_at(),
+                                                        (&fun_ret_t).into(), // FIXME esta convertendo p/ blank se for user type
+                                                        t.clone(),
+                                                    ),
+                                                ));
+                                            }
+                                        }
                                     }
                                     self.insert(&expr, t);
                                 }
