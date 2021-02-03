@@ -121,7 +121,6 @@ impl<'a> SemanticAnalyzer<'a> {
             .iter()
             .filter(|stmt| matches!(stmt, Stmt::Function(_, _, _, _, _) | Stmt::TypeStmt(_,_)))
             .collect();
-        println!("{:?} ", declarations);
         let mut not_declarations: Vec<&Stmt> = stmts
             .iter()
             .filter(|stmt| !matches!(stmt, Stmt::Function(_, _, _, _, _)| Stmt::TypeStmt(_,_) ))

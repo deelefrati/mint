@@ -161,7 +161,7 @@ impl<'a> Parser<'a> {
         while self.next_is(single(RightBrace)).is_none() {
             let id = self.consume(Identifier)?;
             self.consume(Colon)?;
-            let var_type = self.consume_type()?;
+            let (var_type, _) = self.consume_type()?;
             variables.push((id, var_type));
             self.consume(Semicolon)?;
         }
@@ -175,31 +175,27 @@ impl<'a> Parser<'a> {
     fn var_declaration(&mut self) -> Result<Stmt, ParserError> {
         let identifier = self.consume(Identifier)?;
         if self.next_is(single(Colon)).is_some() {
-            if let Some((var_type, id)) = self.next_is_type() {
-                self.consume(Equal)?;
-                if self.next_is(single(LeftBrace)).is_some() {
-                    let mut variables = vec![];
-                    while self.next_is(single(RightBrace)).is_none() {
-                        let identifier = self.consume(Identifier)?;
-                        self.consume(Colon)?;
-                        let expr = self.expression()?;
-                        self.consume(Comma)?;
-                        variables.push((identifier, expr));
-                    }
-                    self.consume(Semicolon)?;
-                    Ok(Stmt::VarStmt(
-                        identifier.lexeme(),
-                        Some(VarType::UserType(id.clone())),
-                        Expr::Instantiate(id, variables),
-                    ))
-                } else {
-                    self.consume(Equal)?;
+            let (var_type, id) = self.consume_type()?;
+            self.consume(Equal)?;
+            if matches!(id.token_type(), Identifier) && self.next_is(single(LeftBrace)).is_some() {
+                let mut variables = vec![];
+                while self.next_is(single(RightBrace)).is_none() {
+                    let identifier = self.consume(Identifier)?;
+                    self.consume(Colon)?;
                     let expr = self.expression()?;
-                    self.consume(Semicolon)?;
-                    Ok(Stmt::VarStmt(identifier.lexeme(), Some(var_type), expr))
+                    self.consume(Comma)?;
+                    variables.push((identifier, expr));
                 }
+                self.consume(Semicolon)?;
+                Ok(Stmt::VarStmt(
+                    identifier.lexeme(),
+                    Some(VarType::UserType(id.clone())),
+                    Expr::Instantiate(id, variables),
+                ))
             } else {
-                Err(ParserError::TypeNotDefined(self.current_line))
+                let expr = self.expression()?;
+                self.consume(Semicolon)?;
+                Ok(Stmt::VarStmt(identifier.lexeme(), Some(var_type), expr))
             }
         } else if self.next_is(single(Equal)).is_some() {
             let expr = self.expression()?;
@@ -433,9 +429,9 @@ impl<'a> Parser<'a> {
         Err(ParserError::Missing(self.current_line, tt))
     }
 
-    fn consume_type(&mut self) -> Result<VarType, ParserError> {
-        if let Some((var_type, _)) = self.next_is_type() {
-            Ok(var_type)
+    fn consume_type(&mut self) -> Result<(VarType, Token), ParserError> {
+        if let Some((var_type, token)) = self.next_is_type() {
+            Ok((var_type, token))
         } else {
             Err(ParserError::TypeExpected(self.current_line))
         }
