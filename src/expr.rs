@@ -87,6 +87,14 @@ pub enum LogicalOp {
     Or,
 }
 
+fn print_attrs(user_instance: &MintInstance) -> String {
+    let mut result = "".to_string();
+    for (key, value) in &user_instance.fields {
+        result.push_str(&format!("  \"{}\": {} \n", key, value));
+    }
+    result
+}
+
 impl std::fmt::Display for Value {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         match self {
@@ -97,7 +105,12 @@ impl std::fmt::Display for Value {
             Value::Fun(_) => write!(f, "function"),
             Value::Type(mint_type) => write!(f, "{}", mint_type.name.lexeme()),
             Value::TypeInstance(mint_instance) => {
-                write!(f, "{}", mint_instance.mint_type.name.lexeme())
+                write!(
+                    f,
+                    "{}: {{\n{}}}",
+                    mint_instance.mint_type.name.lexeme(),
+                    print_attrs(mint_instance)
+                )
             }
         }
     }

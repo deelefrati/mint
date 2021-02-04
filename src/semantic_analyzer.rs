@@ -47,7 +47,7 @@ impl std::convert::From<&VarType> for Type {
                 VarType::Null,
                 Vec::default(),
             ),
-            VarType::UserType(_) => Type::UserType(MintType::default()),
+            VarType::UserType(token) => Type::UserType(MintType::new(token.clone(), &[])),
         }
     }
 }
@@ -97,24 +97,24 @@ impl<'a> SemanticAnalyzer<'a> {
         }
     }
 
-    fn declare_env_vars(&mut self, body: &[Stmt]) -> Result<(), SemanticError> {
-        let vec = body.iter().filter_map(|stmt| match stmt {
-            Stmt::VarStmt(id, var_type, expr) => Some((id, var_type, expr)),
-            _ => None,
-        });
-        self.hoisting = true;
-        for (id, var_type, expr) in vec {
-            if var_type.is_none() {
-                let evaluated_type = self.analyze_one(expr)?;
-                self.declare(&id, evaluated_type);
-            } else {
-                self.declare(&id, var_type.as_ref().unwrap().into());
-            }
-        }
-        self.hoisting = false;
+    //fn declare_env_vars(&mut self, body: &[Stmt]) -> Result<(), SemanticError> {
+    //    let vec = body.iter().filter_map(|stmt| match stmt {
+    //        Stmt::VarStmt(id, var_type, expr) => Some((id, var_type, expr)),
+    //        _ => None,
+    //    });
+    //    self.hoisting = true;
+    //    for (id, var_type, expr) in vec {
+    //        if var_type.is_none() {
+    //            let evaluated_type = self.analyze_one(expr)?;
+    //            self.declare(&id, evaluated_type);
+    //        } else {
+    //            self.declare(&id, var_type.as_ref().unwrap().into());
+    //        }
+    //    }
+    //    self.hoisting = false;
 
-        Ok(())
-    }
+    //    Ok(())
+    //}
 
     fn hoist_declarations(&mut self, stmts: &'a [Stmt]) -> Vec<&'a Stmt> {
         let mut declarations: Vec<&Stmt> = stmts
@@ -134,9 +134,9 @@ impl<'a> SemanticAnalyzer<'a> {
         stmts: &'a [Stmt],
         fun_ret_type: Option<VarType>,
     ) -> Result<Vec<Stmt>, Vec<Error>> {
-        if let Err(err) = self.declare_env_vars(stmts) {
-            self.errors.push(Error::Semantic(err));
-        }
+        //if let Err(err) = self.declare_env_vars(stmts) {
+        //    self.errors.push(Error::Semantic(err));
+        //}
         let mut hoisted_stmts = self.hoist_declarations(stmts);
         for stmt in hoisted_stmts.clone() {
             match stmt {
@@ -145,7 +145,7 @@ impl<'a> SemanticAnalyzer<'a> {
                     Err(semantic_error) => self.errors.push(Error::Semantic(semantic_error)),
                 },
                 Stmt::AssertStmt(expr) => match self.analyze_one(&expr) {
-                    Ok(t) if t != Type::Bool => {
+                    Ok(t) if !self.compare_types(&t, &Type::Bool) => {
                         let (line, starts_at, ends_at) = expr.placement();
                         self.errors
                             .push(Error::Semantic(SemanticError::MismatchedTypes(
@@ -354,37 +354,20 @@ impl<'a> SemanticAnalyzer<'a> {
                         if let Some(fun_ret_t) = fun_ret_type.clone() {
                             match self.analyze_one(&expr) {
                                 Ok(t) => {
-                                    match (t.clone(), fun_ret_t.clone()) {
-                                        (Type::UserType(mint_type), VarType::UserType(token)) => {
-                                            if mint_type.name.lexeme() != token.lexeme() {
-                                                self.errors.push(Error::Semantic(
-                                                    SemanticError::MismatchedTypes(
-                                                        token.line(),
-                                                        token.starts_at(),
-                                                        token.ends_at(),
-                                                        (&fun_ret_t).into(),
-                                                        t.clone(),
-                                                    ),
-                                                ));
-                                            }
-                                        }
-                                        (_, _) => {
-                                            let type_: VarType = t.clone().into();
-                                            if type_ != fun_ret_t {
-                                                self.errors.push(Error::Semantic(
-                                                    SemanticError::MismatchedTypes(
-                                                        token.line(),
-                                                        token.starts_at(),
-                                                        token.ends_at(),
-                                                        (&fun_ret_t).into(), // FIXME esta convertendo p/ blank se for user type
-                                                        t.clone(),
-                                                    ),
-                                                ));
-                                            }
-                                        }
+                                    if !self.compare_types(&(&fun_ret_t).into(), &t) {
+                                        self.errors.push(Error::Semantic(
+                                            SemanticError::MismatchedTypes(
+                                                token.line(),
+                                                token.starts_at(),
+                                                token.ends_at(),
+                                                (&fun_ret_t).into(),
+                                                t.clone(),
+                                            ),
+                                        ));
                                     }
                                     self.insert(&expr, t);
                                 }
+
                                 Err(semantic_err) => {
                                     self.errors.push(Error::Semantic(semantic_err))
                                 }
@@ -400,7 +383,7 @@ impl<'a> SemanticAnalyzer<'a> {
                     }
                     None => {
                         if let Some(fun_ret_t) = fun_ret_type.clone() {
-                            if fun_ret_t != VarType::Null {
+                            if !self.compare_types(&(&fun_ret_t).into(), &Type::Null) {
                                 self.errors
                                     .push(Error::Semantic(SemanticError::MismatchedTypes(
                                         token.line(),
@@ -463,7 +446,29 @@ impl<'a> SemanticAnalyzer<'a> {
             Expr::Instantiate(type_token, attributes) => {
                 self.analyze_instatiation(type_token, attributes)
             }
-            Expr::Get(_, _) => Ok(Type::Null),
+            Expr::Get(expr, token) => {
+                let expr_type = self.analyze_one(expr)?;
+                if let Type::UserType(user_type) = expr_type.clone() {
+                    if let Some(Type::UserType(complete_type)) =
+                        self.get_var(&user_type.name.lexeme())
+                    {
+                        if let Some((_, var_type)) = complete_type
+                            .attrs
+                            .iter()
+                            .find(|(t, _)| t.to_string() == token.lexeme())
+                        {
+                            return Ok(var_type.into());
+                        }
+                    }
+                }
+                Err(SemanticError::PropertyDoesNotExist(
+                    token.line(),
+                    token.starts_at(),
+                    token.ends_at(),
+                    token.lexeme(),
+                    expr_type,
+                ))
+            }
         }
     }
 
@@ -473,13 +478,13 @@ impl<'a> SemanticAnalyzer<'a> {
         attributes: &[(Token, Expr)],
     ) -> Result<Type, SemanticError> {
         if let Some(type_) = self.get_var(&token.lexeme()) {
-            match type_ {
+            match type_.clone() {
                 Type::UserType(mint_type) => {
                     for (token, expr) in attributes {
                         let expr_type = self.analyze_one(expr)?;
                         match mint_type.attrs.get(&token.lexeme()) {
                             Some(attr_type) => {
-                                if expr_type != attr_type.into() {
+                                if !self.compare_types(&expr_type, &attr_type.into()) {
                                     let (line, starts_at, ends_at) = expr.placement();
                                     return Err(SemanticError::MismatchedTypes(
                                         line,
@@ -491,10 +496,12 @@ impl<'a> SemanticAnalyzer<'a> {
                                 }
                             }
                             None => {
-                                return Err(SemanticError::FieldNotDeclared(
+                                return Err(SemanticError::PropertyDoesNotExist(
                                     token.line(),
                                     token.starts_at(),
                                     token.starts_at(),
+                                    token.lexeme(),
+                                    type_,
                                 ))
                             }
                         }
@@ -576,15 +583,10 @@ impl<'a> SemanticAnalyzer<'a> {
         let expr_type = match (op, type_a, type_b) {
             (Add, Type::Num, Type::Num) => Type::Num,
             (Add, Type::Str, Type::Str) => Type::Str,
-
             (Sub, Type::Num, Type::Num) => Type::Num,
-
             (Mul, Type::Num, Type::Num) => Type::Num,
-
             (Div, Type::Num, Type::Num) => Type::Num,
-
             (Mod, Type::Num, Type::Num) => Type::Num,
-
             (op, left, right) => {
                 let (line, starts_at, ends_at) = original_expr.placement();
                 return Err(SemanticError::IncompatibleArith(
@@ -712,10 +714,9 @@ impl<'a> SemanticAnalyzer<'a> {
                 for (arg, param_var_type) in args.iter().zip(&params_types) {
                     let arg_type = self.analyze_one(arg)?;
 
-                    let arg_var_type: VarType = arg_type.clone().into();
                     let param_type: Type = param_var_type.into();
 
-                    if arg_var_type != *param_var_type {
+                    if !self.compare_types(&arg_type, &param_type) {
                         let (line, (starts_at, ends_at)) =
                             (arg.get_line(), arg.get_expr_placement());
                         return Err(SemanticError::MismatchedTypes(
@@ -760,6 +761,13 @@ impl<'a> SemanticAnalyzer<'a> {
             }
         } else {
             None
+        }
+    }
+
+    fn compare_types(&self, x: &Type, y: &Type) -> bool {
+        match (x, y) {
+            (Type::UserType(a), Type::UserType(b)) => a.name.lexeme() == b.name.lexeme(),
+            _ => x == y,
         }
     }
 }

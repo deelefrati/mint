@@ -22,8 +22,8 @@ pub enum SemanticError {
     UnboundVar(usize, usize, usize, String, String),
     TypeNotIntantiable(usize, usize, usize, String),
     TypeAlreadyDeclared(usize, usize, usize),
-    FieldNotDeclared(usize, usize, usize),
     TypeNotDeclared(usize, usize, usize, String),
+    PropertyDoesNotExist(usize, usize, usize, String, Type),
 }
 
 impl SemanticError {
@@ -165,15 +165,7 @@ impl SemanticError {
                     Some(*ends_at),
                     "type already declared".to_string(),
                     Some(print_marker(*starts_at, *ends_at, None))),
-                SemanticError::FieldNotDeclared(line, starts_at, ends_at) => static_error_template(
-                    error_type,
-                    source_vec,
-                    *line,
-                    Some(*starts_at),
-                    Some(*ends_at),
-                    "type already declared".to_string(),
-                    Some(print_marker(*starts_at, *ends_at, None))),
-            SemanticError::TypeNotDeclared(line, starts_at, ends_at, type_name) => static_error_template(
+                SemanticError::TypeNotDeclared(line, starts_at, ends_at, type_name) => static_error_template(
                     error_type,
                     source_vec,
                     *line,
@@ -182,6 +174,14 @@ impl SemanticError {
                     format!("Attempting to instantiate an undeclared type '{}'", type_name),
                     Some(print_marker(*starts_at, *ends_at, None)),
                 ),
+                SemanticError::PropertyDoesNotExist(line, starts_at, ends_at, field, type_) => static_error_template(
+                    error_type,
+                    source_vec,
+                    *line,
+                    Some(*starts_at),
+                    Some(*ends_at),
+                    format!("Property \"{}\" does not exist in type \"{}\"", field, type_),
+                    Some(print_marker(*starts_at, *ends_at, None))),
         }
     }
 }

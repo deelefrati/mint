@@ -135,7 +135,7 @@ impl From<Type> for VarType {
             Type::Null => VarType::Null,
             Type::Str => VarType::String,
             Type::Fun(_, _, _, _) => VarType::Function,
-            Type::UserType(_) => VarType::UserType(Token::default()),
+            Type::UserType(mint_type) => VarType::UserType(mint_type.name),
         }
     }
 }
