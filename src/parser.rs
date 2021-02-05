@@ -415,10 +415,8 @@ impl<'a> Parser<'a> {
         }) {
             Ok(Expr::Literal(op_and_token))
         } else if let Some((_, token)) = self.next_is(single(Identifier)) {
-            println!("aaaaaaa");
             Ok(Expr::Variable(token.clone(), token.lexeme()))
         } else {
-            println!("bbbbbbbbb");
             Err(ParserError::MissingExpression(self.current_line))
         }
     }

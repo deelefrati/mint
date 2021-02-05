@@ -98,7 +98,7 @@ impl std::fmt::Display for Value {
             Value::Boolean(bool) => write!(f, "{}", bool),
             Value::Number(num) => write!(f, "{}", num),
             Value::Str(string) => write!(f, "{}", string),
-            Value::Fun(_) => write!(f, "function"),
+            Value::Fun(callee) => write!(f, "{}", callee),
             Value::Type(mint_type) => write!(f, "{}", mint_type.name.lexeme()),
             Value::TypeInstance(mint_instance) => {
                 write!(
@@ -180,7 +180,7 @@ impl Hash for &Expr {
 impl Eq for &Expr {}
 impl std::fmt::Display for Callable {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        write!(f, "<function {}>", self.name.lexeme())
+        write!(f, "[function {}]", self.name.lexeme())
     }
 }
 

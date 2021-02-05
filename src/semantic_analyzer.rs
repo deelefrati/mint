@@ -648,10 +648,12 @@ impl<'a> SemanticAnalyzer<'a> {
             (StrictNotEqual, Type::Str, Type::Str) => Type::Bool,
             (StrictNotEqual, _, Type::Null) => Type::Bool,
             (StrictNotEqual, Type::Null, _) => Type::Bool,
+            (StrictNotEqual, Type::UserType(_), Type::UserType(_)) => Type::Bool,
 
             (StrictEqual, Type::Num, Type::Num) => Type::Bool,
             (StrictEqual, Type::Bool, Type::Bool) => Type::Bool,
             (StrictEqual, Type::Str, Type::Str) => Type::Bool,
+            (StrictEqual, Type::UserType(_), Type::UserType(_)) => Type::Bool,
             (StrictEqual, _, Type::Null) => Type::Bool,
             (StrictEqual, Type::Null, _) => Type::Bool,
 

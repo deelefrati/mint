@@ -30,6 +30,7 @@ impl Interpreter {
         match (op, left, right) {
             (Sub, Number(a), Number(b)) => Ok(Number(*a - *b)),
             (Add, Number(a), Number(b)) => Ok(Number(*a + *b)),
+            (Add, Str(a), Str(b)) => Ok(Str(format!("{}{}", a, b))),
             (Div, Number(a), Number(b)) => {
                 if *b != 0.0 {
                     Ok(Value::Number(a / b))
@@ -106,6 +107,7 @@ impl Interpreter {
             (ComparationOp::StrictEqual, Boolean(a), Boolean(b)) => Boolean(a == b),
             (ComparationOp::StrictEqual, Str(a), Str(b)) => Boolean(a == b),
             (ComparationOp::StrictEqual, Null, Null) => Boolean(true),
+            (ComparationOp::StrictEqual, TypeInstance(a), TypeInstance(b)) => Boolean(a == b),
             (ComparationOp::StrictEqual, _, Null) => Boolean(false),
             (ComparationOp::StrictEqual, Null, _) => Boolean(false),
 
@@ -115,6 +117,7 @@ impl Interpreter {
             (ComparationOp::StrictNotEqual, Boolean(a), Boolean(b)) => Boolean(a != b),
             (ComparationOp::StrictNotEqual, Str(a), Str(b)) => Boolean(a != b),
             (ComparationOp::StrictNotEqual, Null, Null) => Boolean(false),
+            (ComparationOp::StrictNotEqual, TypeInstance(a), TypeInstance(b)) => Boolean(a != b),
             (ComparationOp::StrictNotEqual, _, Null) => Boolean(true),
             (ComparationOp::StrictNotEqual, Null, _) => Boolean(true),
 

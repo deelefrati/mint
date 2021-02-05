@@ -44,3 +44,48 @@ const p3 = f(tipo, 10);
 console.assert(p3.y === 10);
 console.assert(p3.x.a === "aa");
 
+type Type_ = {
+    x: number;
+    y: number;
+};
+
+type AnotherType_ = {
+    x: number;
+};
+
+type AnotherAnotherType = {
+    x: number;
+    y: number;
+};
+
+const t1 : Type_ = {
+    x: 10,
+    y: 10,
+};
+
+const t2 : Type_ = {
+    x: 10,
+    y: 10,
+};
+
+const t3 : Type_ = {
+    x: 0,
+    y: 10,
+};
+
+const at1 : AnotherType_ = {
+    x: 10,
+};
+
+const aat1 : AnotherAnotherType = {
+    x: 10,
+    y: 10,
+};
+
+console.assert(t1 === t2);
+console.assert(!(t1 === t3));
+console.assert(t1 !== t3);
+console.assert(!(t1 !== t2));
+console.assert(!(t1 === at1));
+console.assert(t1 !== aat1);
+

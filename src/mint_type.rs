@@ -24,7 +24,7 @@ impl MintType {
     }
 }
 
-#[derive(Clone, PartialEq, Debug)]
+#[derive(Clone, Debug)]
 pub struct MintInstance {
     pub mint_type: MintType,
     pub fields: HashMap<String, Value>,
@@ -44,5 +44,21 @@ impl MintInstance {
 
     pub fn get(&self, name: &Token) -> Option<&Value> {
         self.fields.get(&name.lexeme())
+    }
+}
+
+impl PartialEq for MintInstance {
+    fn eq(&self, other: &Self) -> bool {
+        if self.mint_type.name.lexeme() != other.mint_type.name.lexeme() {
+            false
+        } else {
+            for (x_key, x_val) in self.fields.iter() {
+                if x_val != other.fields.get(x_key).unwrap() {
+                    return false;
+                }
+            }
+
+            true
+        }
     }
 }
