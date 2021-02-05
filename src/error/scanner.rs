@@ -19,7 +19,7 @@ impl ScannerError {
                 *line,
                 Some(*line_start),
                 Some(*line_end),
-                format!("Did you mean {} ?", tt),
+                format!("Invalid token. Did you mean {} ?", tt),
                 Some(print_marker(*line_start, *line_end, Some("here"))),
             ),
             ScannerError::UnterminatedString(line) => static_error_template(

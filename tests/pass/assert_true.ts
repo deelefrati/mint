@@ -1,1 +1,1 @@
-assert(true);
+console.assert(true);

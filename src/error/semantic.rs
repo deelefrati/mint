@@ -180,7 +180,7 @@ impl SemanticError {
                     *line,
                     Some(*starts_at),
                     Some(*ends_at),
-                    format!("Property \"{}\" does not exist in type \"{}\"", field, type_),
+                    format!("Property \"{}\" does not exist in ty pe \"{}\"", field, type_),
                     Some(print_marker(*starts_at, *ends_at, None))),
         }
     }

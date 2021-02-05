@@ -52,7 +52,6 @@ impl<'a> Parser<'a> {
                 Function => return,
                 Const => return,
                 If => return,
-                Print => return,
                 Return => return,
                 _ => {
                     self.advance();
@@ -202,15 +201,15 @@ impl<'a> Parser<'a> {
             self.consume(Semicolon)?;
             Ok(Stmt::VarStmt(identifier.lexeme(), None, expr))
         } else {
-            Err(ParserError::AssignmentExpected(self.current_line))
+            Err(ParserError::Expected(self.current_line, vec![Equal]))
         }
     }
 
     fn statement(&mut self) -> Result<Stmt, ParserError> {
-        if self.consume(Assert).is_ok() {
-            self.assert()
-        } else if let Ok(ret_token) = self.consume(Return) {
+        if let Ok(ret_token) = self.consume(Return) {
             self.return_(&ret_token)
+        } else if self.consume(Console).is_ok() {
+            self.console()
         } else {
             self.expression_statement()
         }
@@ -242,15 +241,29 @@ impl<'a> Parser<'a> {
             }
             stmts.push(self.declaration()?);
         }
-        Err(ParserError::Expected(self.current_line, RightBrace))
+        Err(ParserError::Expected(self.current_line, vec![RightBrace]))
     }
 
-    fn assert(&mut self) -> Result<Stmt, ParserError> {
-        self.consume(LeftParen)?;
-        let expr = self.expression()?;
-        self.consume(RightParen)?;
-        self.consume(Semicolon)?;
-        Ok(Stmt::AssertStmt(expr))
+    fn console(&mut self) -> Result<Stmt, ParserError> {
+        self.consume(Dot)?;
+        if self.next_is(single(Log)).is_some() {
+            self.consume(LeftParen)?;
+            let mut exprs: Vec<Expr> = vec![];
+            while self.next_is(single(RightParen)).is_none() {
+                exprs.push(self.expression()?);
+                self.next_is(single(Comma));
+            }
+            self.consume(Semicolon)?;
+            Ok(Stmt::PrintStmt(exprs))
+        } else if self.next_is(single(Assert)).is_some() {
+            self.consume(LeftParen)?;
+            let expr = self.expression()?;
+            self.consume(RightParen)?;
+            self.consume(Semicolon)?;
+            Ok(Stmt::AssertStmt(expr))
+        } else {
+            Err(ParserError::Expected(self.current_line, vec![Log, Assert]))
+        }
     }
 
     fn expression_statement(&mut self) -> Result<Stmt, ParserError> {
@@ -294,7 +307,6 @@ impl<'a> Parser<'a> {
     fn equality(&mut self) -> Result<Expr, ParserError> {
         let mut expr = self.comparison()?;
         while let Some(op_and_token) = self.next_is(|tt| match tt {
-            EqualEqual => Some(ComparationOp::Equal),
             EqualEqualEqual => Some(ComparationOp::StrictEqual),
             BangEqualEqual => Some(ComparationOp::StrictNotEqual),
             _ => None,
@@ -403,8 +415,10 @@ impl<'a> Parser<'a> {
         }) {
             Ok(Expr::Literal(op_and_token))
         } else if let Some((_, token)) = self.next_is(single(Identifier)) {
+            println!("aaaaaaa");
             Ok(Expr::Variable(token.clone(), token.lexeme()))
         } else {
+            println!("bbbbbbbbb");
             Err(ParserError::MissingExpression(self.current_line))
         }
     }

@@ -6,13 +6,9 @@ use super::static_error_template;
 pub enum ParserError {
     Missing(usize, TokenType),
     MissingExpression(usize),
-    // declaration of variables errors
-    AssignmentExpected(usize),
     TypeNotDefined(usize),
-    ColonExpected(usize),
-    SemicolonExpected(usize),
     IdentifierExpected(usize),
-    Expected(usize, TokenType),
+    Expected(usize, Vec<TokenType>),
     ReturnTypeExpected(usize),
     EmptyType, // TODO completar o erro
     TypeExpected(usize),
@@ -41,15 +37,6 @@ impl ParserError {
                 "Missing an expression".to_string(),
                 None,
             ),
-            ParserError::AssignmentExpected(line) => static_error_template(
-                error_type,
-                source_vec,
-                *line,
-                None,
-                None,
-                "Expected \"=\"".to_string(),
-                None,
-            ),
             ParserError::TypeNotDefined(line) => static_error_template(
                 error_type,
                 source_vec,
@@ -57,24 +44,6 @@ impl ParserError {
                 None,
                 None,
                 "Expected type after \":\"".to_string(),
-                None,
-            ),
-            ParserError::ColonExpected(line) => static_error_template(
-                error_type,
-                source_vec,
-                *line,
-                None,
-                None,
-                "Expected \":\"".to_string(),
-                None,
-            ),
-            ParserError::SemicolonExpected(line) => static_error_template(
-                error_type,
-                source_vec,
-                *line,
-                None,
-                None,
-                "Expected \";\"".to_string(),
                 None,
             ),
             ParserError::IdentifierExpected(line) => static_error_template(
@@ -92,7 +61,11 @@ impl ParserError {
                 *line,
                 None,
                 None,
-                format!("Expected {:?}", tt),
+                if tt.len() > 1 {
+                    format!("Expected {:?}", tt)
+                } else {
+                    format!("Expected one os this symbols {:?}", tt)
+                },
                 None,
             ),
             ParserError::ReturnTypeExpected(line) => static_error_template(

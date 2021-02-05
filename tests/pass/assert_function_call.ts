@@ -1,11 +1,11 @@
 function foo() {
   const a = 1 + 1;
-  assert(a === 2);
+  console.assert(a === 2);
 }
 
 const a = 3;
-assert(foo() === null);
-assert(a === 3);
+console.assert(foo() === null);
+console.assert(a === 3);
 
 function fib(n: number): number {
   if (n <= 1) {
@@ -14,10 +14,10 @@ function fib(n: number): number {
   return fib(n - 2) + fib(n - 1);
 }
 
-assert(fib(0) === 0);
-assert(fib(1) === 1);
-assert(fib(2) === 1);
-assert(fib(5) === 5);
+console.assert(fib(0) === 0);
+console.assert(fib(1) === 1);
+console.assert(fib(2) === 1);
+console.assert(fib(5) === 5);
 
 function only_return() {
   return;
@@ -25,8 +25,8 @@ function only_return() {
 
 function nothing() {}
 
-assert(only_return() === null);
-assert(nothing() === null);
+console.assert(only_return() === null);
+console.assert(nothing() === null);
 
 function f(x: boolean): string {
   if (x) {
@@ -36,8 +36,8 @@ function f(x: boolean): string {
   }
 }
 
-assert(f(true) === "string");
-assert(f(false) === "another string");
+console.assert(f(true) === "string");
+console.assert(f(false) === "another string");
 
 function g(x: number): number {
   if (x) {

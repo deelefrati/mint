@@ -50,9 +50,7 @@ pub enum ArithmeticOp {
 impl std::fmt::Display for ComparationOp {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         match self {
-            ComparationOp::NotEqual => write!(f, "!="),
             ComparationOp::StrictNotEqual => write!(f, "!=="),
-            ComparationOp::Equal => write!(f, "=="),
             ComparationOp::StrictEqual => write!(f, "==="),
             ComparationOp::LessThan => write!(f, "<"),
             ComparationOp::LessEqual => write!(f, "<="),
@@ -63,9 +61,7 @@ impl std::fmt::Display for ComparationOp {
 }
 #[derive(Clone, PartialEq, Debug, Copy, Hash)]
 pub enum ComparationOp {
-    Equal,
     StrictEqual,
-    NotEqual,
     StrictNotEqual,
     LessThan,
     LessEqual,

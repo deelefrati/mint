@@ -5,6 +5,7 @@ use crate::token_type::VarType;
 pub enum Stmt {
     ExprStmt(Expr),
     AssertStmt(Expr),
+    PrintStmt(Vec<Expr>),
     VarStmt(String, Option<VarType>, Expr),
     Block(Vec<Stmt>),
     IfStmt(Expr, Vec<Stmt>, Vec<Stmt>),

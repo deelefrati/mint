@@ -1,22 +1,22 @@
 if(10 === 10){
-  assert(true);
+  console.assert(true);
 }
 
  if(10 !== 10){
- assert(true);
+ console.assert(true);
  }
 
 
 if("casa" === "cas"){
-   assert(false);
+   console.assert(false);
 }else{
-  assert(true);
+  console.assert(true);
 }
 
 if(true && false){
-  assert(false);
+  console.assert(false);
 }else{
-  assert(true);
+  console.assert(true);
 }
 
 

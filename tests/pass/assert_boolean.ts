@@ -1,4 +1,4 @@
-assert(true === true);
-assert(true || false === true);
-assert(true && false === false);
-assert(!true === false);
+console.assert(true === true);
+console.assert(true || false === true);
+console.assert(true && false === false);
+console.assert(!true === false);

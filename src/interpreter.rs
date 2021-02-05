@@ -301,10 +301,7 @@ impl Interpreter {
     fn eval(&mut self, stmt: &Stmt) -> Result<(), RuntimeError> {
         match stmt {
             Stmt::ExprStmt(expr) => match self.eval_expr(expr) {
-                Ok(value) => {
-                    println!("{}", value);
-                    Ok(())
-                }
+                Ok(_) => Ok(()),
                 Err(err) => Err(err),
             },
             Stmt::AssertStmt(expr) => match self.eval_expr(expr) {
@@ -315,6 +312,18 @@ impl Interpreter {
                 }
                 Err(err) => Err(err),
             },
+            Stmt::PrintStmt(exprs) => {
+                for (i, expr) in exprs.iter().enumerate() {
+                    let value = self.eval_expr(expr)?;
+                    if i == exprs.len() - 1 {
+                        print!("{} ", value);
+                    } else {
+                        print!("{}, ", value);
+                    }
+                }
+                println!();
+                Ok(())
+            }
             Stmt::VarStmt(identifier, _, expr) => match self.eval_var_stmt(identifier, expr) {
                 Ok(_) => Ok(()),
                 Err(err) => Err(err),

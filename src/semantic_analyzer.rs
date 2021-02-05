@@ -159,6 +159,13 @@ impl<'a> SemanticAnalyzer<'a> {
                     Err(error) => self.errors.push(Error::Semantic(error)),
                     _ => {}
                 },
+                Stmt::PrintStmt(exprs) => {
+                    for expr in exprs {
+                        if let Err(err) = self.analyze_one(expr) {
+                            self.errors.push(Error::Semantic(err));
+                        }
+                    }
+                }
                 Stmt::VarStmt(var_name, var_type, expr) => match self.analyze_one(&expr) {
                     Ok(t) => match (var_type, t.clone()) {
                         (Some(VarType::Boolean), Type::Bool) => {
@@ -636,10 +643,6 @@ impl<'a> SemanticAnalyzer<'a> {
         let type_a = self.analyze_one(a)?;
         let type_b = self.analyze_one(b)?;
         let expr_type = match (op, type_a, type_b) {
-            (Equal, _, _) => Type::Bool,
-
-            (NotEqual, _, _) => Type::Bool,
-
             (StrictNotEqual, Type::Num, Type::Num) => Type::Bool,
             (StrictNotEqual, Type::Bool, Type::Bool) => Type::Bool,
             (StrictNotEqual, Type::Str, Type::Str) => Type::Bool,
