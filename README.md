@@ -45,7 +45,7 @@ cargo install --path .
 
 ### Primitive types
 
-- `Number` for integer values:
+- `Number` for numeric values:
 
   ```typescript
   1, 0.5, 0, -0.5, -1
@@ -95,7 +95,7 @@ Mint has the following types of operators:
 | Operator  | Usage | Description |
 |:-----: | :-----: | :----------: |
 |&& | true && true    | Returns true if both operands are true; otherwise, returns false. |
-|\|\| | true || false | Returns true if either operand is true; if both are false, returns false. |
+|\|\| | true \|\| false | Returns true if either operand is true; if both are false, returns false. |
 |!  | !true           | Returns false if its single operand that can be converted to true; otherwise, returns true. |
 
 ### Variables
