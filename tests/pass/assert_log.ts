@@ -1,6 +1,6 @@
 type Point_2 = {
-    x: number;
-    y: number;
+    x: number,
+    y: number,
 };
 
 const type_ : Point_2 = {

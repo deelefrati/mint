@@ -16,7 +16,7 @@ pub fn gen(tag: &str) -> Result<(), Box<dyn Error>> {
     let mut content = String::new();
     for file in fs::read_dir(Path::new("tests").join(tag))? {
         let file = file?.path();
-        if file.extension().map(|s| s != "js").unwrap_or(true) {
+        if file.extension().map(|s| s != "ts").unwrap_or(true) {
             continue;
         }
         let filename = file.file_stem().unwrap();

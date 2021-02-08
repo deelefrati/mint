@@ -103,10 +103,35 @@ function l(x: number): number {
   }
 }
 // some random comment
-function foo(): number {
-  const a = 1;
-  return a;
+function fo0o(): number {
+  const b = 1;
+  return b;
 }
 
-foo();
-const a = 10;
+fo0o();
+const b = 10;
+
+function is_odd(x: number) : boolean {
+    if(x === 0){
+        return false;
+    }
+    return is_even(x-1);
+}
+
+function is_even(x: number) : boolean {
+    if(x === 0) {
+        return true;
+    }
+    return is_odd(x-1);
+}
+
+console.assert(is_odd(1));
+console.assert(is_odd(3));
+console.assert(is_odd(5));
+console.assert(!is_odd(0));
+
+console.assert(is_even(0));
+console.assert(is_even(2));
+console.assert(is_even(4));
+console.assert(!is_even(1));
+

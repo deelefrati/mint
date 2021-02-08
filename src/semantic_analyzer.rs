@@ -121,6 +121,22 @@ impl<'a> SemanticAnalyzer<'a> {
             .iter()
             .filter(|stmt| matches!(stmt, Stmt::Function(_, _, _, _, _) | Stmt::TypeStmt(_,_)))
             .collect();
+        declarations.iter().for_each(|decl| match decl {
+            Stmt::Function(token, params, _, ret_type, _) => self.declare(
+                &token.lexeme(),
+                Type::Fun(
+                    SmntEnv::new(HashMap::default()),
+                    params.iter().map(|(_, t)| t.clone()).collect(),
+                    ret_type.clone(),
+                    vec![],
+                ),
+            ),
+            Stmt::TypeStmt(token, attrs) => self.declare(
+                &token.lexeme(),
+                Type::UserType(MintType::new(token.clone(), attrs)),
+            ),
+            _ => (),
+        });
         let mut not_declarations: Vec<&Stmt> = stmts
             .iter()
             .filter(|stmt| !matches!(stmt, Stmt::Function(_, _, _, _, _)| Stmt::TypeStmt(_,_) ))
@@ -138,6 +154,7 @@ impl<'a> SemanticAnalyzer<'a> {
         //    self.errors.push(Error::Semantic(err));
         //}
         let mut hoisted_stmts = self.hoist_declarations(stmts);
+
         for stmt in hoisted_stmts.clone() {
             match stmt {
                 Stmt::ExprStmt(expr) => match self.analyze_one(&expr) {

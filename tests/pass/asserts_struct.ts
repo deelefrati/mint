@@ -16,8 +16,8 @@ const p2: Point = {
   x: 20,
 };
 
-console.assert(p2.x === 10);
-console.assert(p2.y === 20);
+console.assert(p2.x === 20);
+console.assert(p2.y === 10);
 
 type Type = {
   a: string,
