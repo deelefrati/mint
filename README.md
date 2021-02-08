@@ -68,35 +68,35 @@ There is also the `null` type, which represents an empty value.
 Mint has the following types of operators:
 
 #### Assignment operator
-Operator  | Usage | Description
+| Operator  | Usage | Description |
 | :-----: | :-----: | :----------: |
-= | x = y |  Assigns the value of its right operand to its left operand
-
-#### Comparison operators
-Operator  | Usage | Description
+| = | x = y |  Assigns the value of its right operand to its left operand|
+|
+#### Comparison operators|
+| Operator  | Usage | Description |
 |:-----: | :-----: | :----------: |
-=== | 10 === 10 | Returns true if the operands are equal and of the same type 
-!== | 10 !== 11 | Returns true if the operands are of the same type but not equal, or are of different type. 
->   | 1 > 0     | Returns true if the left operand is greater than the right operand.
->=  | 1 >= 0    | Returns true if the left operand is greater than or equal to the right operand. 	 
-<   | 0 < 1     | Returns true if the left operand is less than the right operand.  
-<=  | 0 <= 1    | Returns true if the left operand is less than or equal to the right operand. 
-
-#### Arithmetic operators
-Operator  | Usage | Description
+|=== | 10 === 10 | Returns true if the operands are equal and of the same type |
+|!== | 10 !== 11 | Returns true if the operands are of the same type but not equal, or are of different type. |
+|>   | 1 > 0     | Returns true if the left operand is greater than the right operand.|
+|>=  | 1 >= 0    | Returns true if the left operand is greater than or equal to the right operand. 	 |
+|<   | 0 < 1     | Returns true if the left operand is less than the right operand.  |
+|<=  | 0 <= 1    | Returns true if the left operand is less than or equal to the right operand. |
+|
+#### Arithmetic operators|
+| Operator  | Usage | Description |
 |:-----: | :-----: | :----------: |
-+ | 10 + 10 | Returns the addition between left and right operands.
-- | 10 - 10 | Returns the subtraction between left and right operands.
-* | 10 * 10 | Returns the multiplication between left and right operands.
-/ | 10 / 10 | Returns the division between left and right operands.
-% | 10 % 10 | Returns the integer remainder of dividing the two operands.  
-
-#### Logical operators
-Operator  | Usage | Description
+|+ | 10 + 10 | Returns the addition between left and right operands.|
+|- | 10 - 10 | Returns the subtraction between left and right operands.|
+|* | 10 * 10 | Returns the multiplication between left and right operands.|
+|/ | 10 / 10 | Returns the division between left and right operands.|
+|% | 10 % 10 | Returns the integer remainder of dividing the two operands.  |
+|
+#### Logical operators|
+| Operator  | Usage | Description |
 |:-----: | :-----: | :----------: |
-&& | true && true    | Returns true if both operands are true; otherwise, returns false. 
-\|\| | true || false | Returns true if either operand is true; if both are false, returns false. 
-!  | !true           | Returns false if its single operand that can be converted to true; otherwise, returns true. 
+|&& | true && true    | Returns true if both operands are true; otherwise, returns false. |
+|\|\| | true || false | Returns true if either operand is true; if both are false, returns false. |
+|!  | !true           | Returns false if its single operand that can be converted to true; otherwise, returns true. |
 
 ### Variables
 
