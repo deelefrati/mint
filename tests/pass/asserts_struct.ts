@@ -1,6 +1,6 @@
 type Point = {
-  x: number;
-  y: number;
+  x: number,
+  y: number,
 };
 
 const point: Point = {
@@ -20,11 +20,11 @@ console.assert(p2.x === 10);
 console.assert(p2.y === 20);
 
 type Type = {
-  a: string;
+  a: string,
 };
 type AnotherType = {
-  x: Type;
-  y: number;
+  x: Type,
+  y: number,
 };
 
 const tipo: Type = {
@@ -45,17 +45,17 @@ console.assert(p3.y === 10);
 console.assert(p3.x.a === "aa");
 
 type Type_ = {
-    x: number;
-    y: number;
+    x: number,
+    y: number,
 };
 
 type AnotherType_ = {
-    x: number;
+    x: number,
 };
 
 type AnotherAnotherType = {
-    x: number;
-    y: number;
+    x: number,
+    y: number,
 };
 
 const t1 : Type_ = {

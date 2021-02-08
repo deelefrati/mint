@@ -162,7 +162,7 @@ impl<'a> Parser<'a> {
             self.consume(Colon)?;
             let (var_type, _) = self.consume_type()?;
             variables.push((id, var_type));
-            self.consume(Semicolon)?;
+            self.consume(Comma)?;
         }
         self.consume(Semicolon)?;
         if variables.is_empty() {
