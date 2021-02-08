@@ -71,7 +71,7 @@ Mint has the following types of operators:
 | Operator  | Usage | Description |
 | :-----: | :-----: | :----------: |
 | = | x = y |  Assigns the value of its right operand to its left operand|
-|
+
 #### Comparison operators
 | Operator  | Usage | Description |
 |:-----: | :-----: | :----------: |
