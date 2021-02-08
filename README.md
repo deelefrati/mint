@@ -72,7 +72,7 @@ Mint has the following types of operators:
 | :-----: | :-----: | :----------: |
 | = | x = y |  Assigns the value of its right operand to its left operand|
 |
-#### Comparison operators|
+#### Comparison operators
 | Operator  | Usage | Description |
 |:-----: | :-----: | :----------: |
 |=== | 10 === 10 | Returns true if the operands are equal and of the same type |
@@ -82,7 +82,7 @@ Mint has the following types of operators:
 |<   | 0 < 1     | Returns true if the left operand is less than the right operand.  |
 |<=  | 0 <= 1    | Returns true if the left operand is less than or equal to the right operand. |
 
-#### Arithmetic operators|
+#### Arithmetic operators
 | Operator  | Usage | Description |
 |:-----: | :-----: | :----------: |
 |+ | 10 + 10 | Returns the addition between left and right operands.|
@@ -91,7 +91,7 @@ Mint has the following types of operators:
 |/ | 10 / 10 | Returns the division between left and right operands.|
 |% | 10 % 10 | Returns the integer remainder of dividing the two operands.  |
 
-#### Logical operators|
+#### Logical operators
 | Operator  | Usage | Description |
 |:-----: | :-----: | :----------: |
 |&& | true && true    | Returns true if both operands are true; otherwise, returns false. |
