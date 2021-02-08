@@ -81,7 +81,7 @@ Mint has the following types of operators:
 |>=  | 1 >= 0    | Returns true if the left operand is greater than or equal to the right operand. 	 |
 |<   | 0 < 1     | Returns true if the left operand is less than the right operand.  |
 |<=  | 0 <= 1    | Returns true if the left operand is less than or equal to the right operand. |
-|
+
 #### Arithmetic operators|
 | Operator  | Usage | Description |
 |:-----: | :-----: | :----------: |
@@ -90,7 +90,7 @@ Mint has the following types of operators:
 |* | 10 * 10 | Returns the multiplication between left and right operands.|
 |/ | 10 / 10 | Returns the division between left and right operands.|
 |% | 10 % 10 | Returns the integer remainder of dividing the two operands.  |
-|
+
 #### Logical operators|
 | Operator  | Usage | Description |
 |:-----: | :-----: | :----------: |
