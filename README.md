@@ -158,7 +158,8 @@ Function definitions start with the keyword `function` followed by:
 ```typescript
 function add_numbers(a: number, b : number) : number {
     return a + b;
-}```
+}
+```
 
 You can call any function like:
 
