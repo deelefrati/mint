@@ -33,10 +33,6 @@ where
     pub fn pop(&mut self) {
         self.inner = self.inner.previous.clone().unwrap();
     }
-
-    pub fn declared_keys(&self) -> Vec<String> {
-        self.inner.declared_keys()
-    }
 }
 
 #[derive(PartialEq, Clone, Default, Debug)]
@@ -63,26 +59,6 @@ where
             self.previous.clone().unwrap().get(key)
         } else {
             None
-        }
-    }
-    fn declared_keys(&self) -> Vec<String> {
-        if let Some(prev) = self.previous.clone() {
-            let mut inner = self
-                .current
-                .borrow()
-                .keys()
-                .map(|s| s.to_string())
-                .collect::<Vec<String>>();
-
-            inner.append(&mut prev.declared_keys());
-
-            inner
-        } else {
-            self.current
-                .borrow()
-                .keys()
-                .map(|s| s.to_string())
-                .collect()
         }
     }
 }

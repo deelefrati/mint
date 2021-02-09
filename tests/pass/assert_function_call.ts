@@ -134,4 +134,25 @@ console.assert(is_even(0));
 console.assert(is_even(2));
 console.assert(is_even(4));
 console.assert(!is_even(1));
+const a1 = "a";
+function f_1() : string{
+    function g() : string {
+        return a1;
+    }
+    const a1 = "another a";
+    return g();
+}
+
+console.assert(f_1() === "another a");
+
+const x1 = "global";
+if(true) {
+    function show_x(): string {
+        return x1;
+    }
+
+    const x1 = "block";
+    console.assert(show_x() === "block");
+}
+
 
