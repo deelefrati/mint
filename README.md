@@ -153,7 +153,7 @@ Function definitions start with the keyword `function` followed by:
 - the functions name;
 - its parameters around parentheses;
 - the type of value it will produce (if any) after a `:` and;
-- the function's body after a colon, like in the examples:
+- the function's body inside a pair of brackets , like in the examples:
 
 ```typescript
 function add_numbers(a: number, b : number) : number {
