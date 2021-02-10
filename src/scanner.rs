@@ -208,27 +208,6 @@ impl<'a> Scanner<'a> {
         }
     }
 
-    //    fn match_char_or_else_or_else(
-    //        &mut self,
-    //        expected: char,
-    //        tt1: TokenType,
-    //        tt2: TokenType,
-    //        tt3: TokenType,
-    //    ) -> TokenType {
-    //        if Some(expected) == self.peek() {
-    //            self.advance();
-    //            if Some(expected) == self.peek() {
-    //                self.advance();
-    //                tt1
-    //            } else {
-    //                self.advance();
-    //                tt2
-    //            }
-    //        } else {
-    //            tt3
-    //        }
-    //    }
-
     fn slash_or_comment(&mut self) -> TokenType {
         if self.match_char('/') {
             self.advance();

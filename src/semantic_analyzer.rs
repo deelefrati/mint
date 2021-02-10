@@ -5,7 +5,7 @@ use crate::{
     mint_type::MintType,
     stmt::Stmt,
     token::Token,
-    token_type::VarType,
+    token_type::{Literal, VarType},
 };
 use std::collections::HashMap;
 
@@ -18,6 +18,7 @@ impl std::fmt::Display for Type {
             Type::Num => write!(f, "Number"),
             Type::Bool => write!(f, "Boolean"),
             Type::Str => write!(f, "String"),
+            Type::Literals(literal) => write!(f, "{}", literal),
             Type::Fun(_, _, _, _) => write!(f, "Function"),
             Type::UserType(mint_type) => write!(f, "{}", mint_type.name.lexeme()),
         }
@@ -30,6 +31,7 @@ pub enum Type {
     Bool,
     Null,
     Str,
+    Literals(Literal),
     Fun(SmntEnv, Vec<VarType>, VarType, Vec<String>),
     UserType(MintType),
 }
@@ -41,6 +43,7 @@ impl std::convert::From<&VarType> for Type {
             VarType::Boolean => Type::Bool,
             VarType::Null => Type::Null,
             VarType::String => Type::Str,
+            VarType::Literals(literal) => Type::Literals(literal.to_owned()),
             VarType::Function => Type::Fun(
                 SmntEnv::new(HashMap::default()),
                 Vec::default(),
@@ -210,6 +213,19 @@ impl<'a> SemanticAnalyzer<'a> {
                                 ));
                             }
                         }
+                        (Some(VarType::Boolean), Type::Literals(Literal::Boolean(_))) => {
+                            if let Some((_, true)) = self.define(var_name, Type::Bool) {
+                                let (line, starts_at, ends_at) = expr.placement();
+                                self.errors.push(Error::Semantic(
+                                    SemanticError::VariableOverwrited(
+                                        line,
+                                        starts_at,
+                                        ends_at,
+                                        var_name.clone(),
+                                    ),
+                                ));
+                            }
+                        }
                         (Some(VarType::String), Type::Str) => {
                             if let Some((_, true)) = self.define(var_name, Type::Str) {
                                 let (line, starts_at, ends_at) = expr.placement();
@@ -223,7 +239,33 @@ impl<'a> SemanticAnalyzer<'a> {
                                 ));
                             }
                         }
+                        (Some(VarType::String), Type::Literals(Literal::String(_))) => {
+                            if let Some((_, true)) = self.define(var_name, Type::Str) {
+                                let (line, starts_at, ends_at) = expr.placement();
+                                self.errors.push(Error::Semantic(
+                                    SemanticError::VariableOverwrited(
+                                        line,
+                                        starts_at,
+                                        ends_at,
+                                        var_name.clone(),
+                                    ),
+                                ));
+                            }
+                        }
                         (Some(VarType::Number), Type::Num) => {
+                            if let Some((_, true)) = self.define(var_name, Type::Num) {
+                                let (line, starts_at, ends_at) = expr.placement();
+                                self.errors.push(Error::Semantic(
+                                    SemanticError::VariableOverwrited(
+                                        line,
+                                        starts_at,
+                                        ends_at,
+                                        var_name.clone(),
+                                    ),
+                                ));
+                            }
+                        }
+                        (Some(VarType::Number), Type::Literals(Literal::Number(_))) => {
                             if let Some((_, true)) = self.define(var_name, Type::Num) {
                                 let (line, starts_at, ends_at) = expr.placement();
                                 self.errors.push(Error::Semantic(
@@ -264,6 +306,34 @@ impl<'a> SemanticAnalyzer<'a> {
                             if let Some((_, true)) =
                                 self.define(var_name, Type::UserType(mint_type))
                             {
+                                let (line, starts_at, ends_at) = expr.placement();
+                                self.errors.push(Error::Semantic(
+                                    SemanticError::VariableOverwrited(
+                                        line,
+                                        starts_at,
+                                        ends_at,
+                                        var_name.clone(),
+                                    ),
+                                ));
+                            }
+                        }
+                        (Some(VarType::Literals(_)), Type::Literals(_)) => {
+                            if self.compare_types(&var_type.as_ref().unwrap().into(), &t) {
+                                if let Some((_, true)) = self.define(var_name, t) {
+                                    let (line, starts_at, ends_at) = expr.placement();
+                                    self.errors.push(Error::Semantic(
+                                        SemanticError::VariableOverwrited(
+                                            line,
+                                            starts_at,
+                                            ends_at,
+                                            var_name.clone(),
+                                        ),
+                                    ));
+                                }
+                            }
+                        }
+                        (None, Type::Literals(literal)) => {
+                            if let Some((_, true)) = self.define(var_name, literal.to_primitive()) {
                                 let (line, starts_at, ends_at) = expr.placement();
                                 self.errors.push(Error::Semantic(
                                     SemanticError::VariableOverwrited(
@@ -389,7 +459,7 @@ impl<'a> SemanticAnalyzer<'a> {
                         if let Some(fun_ret_t) = fun_ret_type.clone() {
                             match self.analyze_one(&expr) {
                                 Ok(t) => {
-                                    if !self.compare_types(&(&fun_ret_t).into(), &t) {
+                                    if !self.compare_types(&t, &(&fun_ret_t).into()) {
                                         self.errors.push(Error::Semantic(
                                             SemanticError::MismatchedTypes(
                                                 token.line(),
@@ -591,8 +661,11 @@ impl<'a> SemanticAnalyzer<'a> {
 
         let t = match (op, expr_type) {
             (Bang, Type::Bool) => Type::Bool,
+            (Bang, Type::Literals(Literal::Boolean(_))) => Type::Bool,
             (Minus, Type::Num) => Type::Num,
+            (Minus, Type::Literals(Literal::Number(_))) => Type::Num,
             (Plus, Type::Num) => Type::Num,
+            (Plus, Type::Literals(Literal::Number(_))) => Type::Num,
             (op, t) => {
                 let (line, starts_at, ends_at) = original_expr.placement();
                 return Err(SemanticError::IncompatibleUnaryOp(
@@ -616,12 +689,19 @@ impl<'a> SemanticAnalyzer<'a> {
         let type_b = self.analyze_one(b)?;
 
         let expr_type = match (op, type_a, type_b) {
-            (Add, Type::Num, Type::Num) => Type::Num,
             (Add, Type::Str, Type::Str) => Type::Str,
-            (Sub, Type::Num, Type::Num) => Type::Num,
-            (Mul, Type::Num, Type::Num) => Type::Num,
-            (Div, Type::Num, Type::Num) => Type::Num,
-            (Mod, Type::Num, Type::Num) => Type::Num,
+            (Add, Type::Literals(Literal::String(_)), Type::Literals(Literal::String(_))) => {
+                Type::Str
+            }
+            (Add, Type::Str, Type::Literals(Literal::String(_))) => Type::Str,
+            (Add, Type::Literals(Literal::String(_)), Type::Str) => Type::Str,
+            (_, Type::Literals(Literal::Number(_)), Type::Literals(Literal::Number(_))) => {
+                Type::Num
+            }
+            (_, Type::Literals(Literal::Number(_)), Type::Num) => Type::Num,
+            (_, Type::Num, Type::Literals(Literal::Number(_))) => Type::Num,
+            (_, Type::Num, Type::Num) => Type::Num,
+
             (op, left, right) => {
                 let (line, starts_at, ends_at) = original_expr.placement();
                 return Err(SemanticError::IncompatibleArith(
@@ -640,14 +720,16 @@ impl<'a> SemanticAnalyzer<'a> {
         b: &Expr,
         original_expr: &Expr,
     ) -> Result<Type, SemanticError> {
-        use LogicalOp::*;
-
         let type_a = self.analyze_one(a)?;
         let type_b = self.analyze_one(b)?;
 
         let expr_type = match (op, type_a, type_b) {
-            (And, Type::Bool, Type::Bool) => Type::Bool,
-            (Or, Type::Bool, Type::Bool) => Type::Bool,
+            (_, Type::Literals(Literal::Boolean(_)), Type::Literals(Literal::Boolean(_))) => {
+                Type::Bool
+            }
+            (_, Type::Bool, Type::Literals(Literal::Boolean(_))) => Type::Bool,
+            (_, Type::Literals(Literal::Boolean(_)), Type::Bool) => Type::Bool,
+            (_, Type::Bool, Type::Bool) => Type::Bool,
 
             (op, left, right) => {
                 let (line, starts_at, ends_at) = original_expr.placement();
@@ -667,41 +749,87 @@ impl<'a> SemanticAnalyzer<'a> {
         b: &Expr,
         original_expr: &Expr,
     ) -> Result<Type, SemanticError> {
+        fn cmp_eq(
+            expr: &Expr,
+            op: &ComparationOp,
+            left: Type,
+            right: Type,
+        ) -> Result<Type, SemanticError> {
+            let t = match (left.clone(), right.clone()) {
+                (Type::Num, Type::Num) => Type::Bool,
+                (Type::Literals(Literal::Number(_)), Type::Literals(Literal::Number(_))) => {
+                    Type::Bool
+                }
+                (Type::Num, Type::Literals(Literal::Number(_))) => Type::Bool,
+                (Type::Literals(Literal::Number(_)), Type::Num) => Type::Bool,
+
+                (Type::Str, Type::Str) => Type::Bool,
+                (Type::Literals(Literal::String(_)), Type::Literals(Literal::String(_))) => {
+                    Type::Bool
+                }
+                (Type::Str, Type::Literals(Literal::String(_))) => Type::Bool,
+                (Type::Literals(Literal::String(_)), Type::Str) => Type::Bool,
+
+                (Type::Bool, Type::Bool) => Type::Bool,
+                (Type::Literals(Literal::Boolean(_)), Type::Literals(Literal::Boolean(_))) => {
+                    Type::Bool
+                }
+                (Type::Literals(Literal::Boolean(_)), Type::Bool) => Type::Bool,
+                (Type::Bool, Type::Literals(Literal::Boolean(_))) => Type::Bool,
+
+                (_, Type::Null) => Type::Bool,
+                (Type::Null, _) => Type::Bool,
+                (Type::UserType(_), Type::UserType(_)) => Type::Bool,
+                _ => {
+                    let (line, starts_at, ends_at) = expr.placement();
+                    let (l, r) = match (left, right) {
+                        (Type::Literals(a), Type::Literals(b)) => {
+                            (a.to_primitive(), b.to_primitive())
+                        }
+                        (Type::Literals(literal), t) => (literal.to_primitive(), t),
+                        (t, Type::Literals(literal)) => (t, literal.to_primitive()),
+                        (a, b) => (a, b),
+                    };
+                    return Err(SemanticError::IncompatibleComparation(
+                        line, starts_at, ends_at, *op, l, r,
+                    ));
+                }
+            };
+            Ok(t)
+        }
+        fn cmp(
+            expr: &Expr,
+            op: &ComparationOp,
+            left: Type,
+            right: Type,
+        ) -> Result<Type, SemanticError> {
+            let t = match (left.clone(), right.clone()) {
+                (Type::Num, Type::Num) => Type::Bool,
+                (Type::Str, Type::Str) => Type::Bool,
+                (Type::Literals(Literal::Number(_)), Type::Literals(Literal::Number(_))) => {
+                    Type::Bool
+                }
+                (Type::Literals(Literal::String(_)), Type::Literals(Literal::String(_))) => {
+                    Type::Bool
+                }
+                _ => {
+                    let (line, starts_at, ends_at) = expr.placement();
+                    return Err(SemanticError::IncompatibleComparation(
+                        line, starts_at, ends_at, *op, left, right,
+                    ));
+                }
+            };
+            Ok(t)
+        }
+
         use ComparationOp::*;
-        let type_a = self.analyze_one(a)?;
-        let type_b = self.analyze_one(b)?;
-        let expr_type = match (op, type_a, type_b) {
-            (StrictNotEqual, Type::Num, Type::Num) => Type::Bool,
-            (StrictNotEqual, Type::Bool, Type::Bool) => Type::Bool,
-            (StrictNotEqual, Type::Str, Type::Str) => Type::Bool,
-            (StrictNotEqual, _, Type::Null) => Type::Bool,
-            (StrictNotEqual, Type::Null, _) => Type::Bool,
-            (StrictNotEqual, Type::UserType(_), Type::UserType(_)) => Type::Bool,
+        let left = self.analyze_one(a)?;
+        let right = self.analyze_one(b)?;
+        let expr_type = match op {
+            StrictEqual | StrictNotEqual => cmp_eq(original_expr, op, left, right)?,
 
-            (StrictEqual, Type::Num, Type::Num) => Type::Bool,
-            (StrictEqual, Type::Bool, Type::Bool) => Type::Bool,
-            (StrictEqual, Type::Str, Type::Str) => Type::Bool,
-            (StrictEqual, Type::UserType(_), Type::UserType(_)) => Type::Bool,
-            (StrictEqual, _, Type::Null) => Type::Bool,
-            (StrictEqual, Type::Null, _) => Type::Bool,
-
-            (LessThan, Type::Num, Type::Num) => Type::Bool,
-            (LessThan, Type::Str, Type::Str) => Type::Bool,
-
-            (LessEqual, Type::Num, Type::Num) => Type::Bool,
-            (LessEqual, Type::Str, Type::Str) => Type::Bool,
-
-            (GreaterThan, Type::Num, Type::Num) => Type::Bool,
-            (GreaterThan, Type::Str, Type::Str) => Type::Bool,
-
-            (GreaterEqual, Type::Num, Type::Num) => Type::Bool,
-            (GreaterEqual, Type::Str, Type::Str) => Type::Bool,
-
-            (op, left, right) => {
-                let (line, starts_at, ends_at) = original_expr.placement();
-                return Err(SemanticError::IncompatibleComparation(
-                    line, starts_at, ends_at, *op, left, right,
-                ));
+            LessThan | LessEqual | GreaterThan | GreaterEqual => {
+                cmp(original_expr, op, left, right)?
             }
         };
         Ok(expr_type)
@@ -710,9 +838,9 @@ impl<'a> SemanticAnalyzer<'a> {
     fn analyze_literal(&self, value: &Value) -> Type {
         match value {
             Value::Null => Type::Null,
-            Value::Boolean(_) => Type::Bool,
-            Value::Number(_) => Type::Num,
-            Value::Str(_) => Type::Str,
+            Value::Boolean(boolean) => Type::Literals(Literal::Boolean(*boolean)),
+            Value::Number(num) => Type::Literals(Literal::Number(*num)),
+            Value::Str(string) => Type::Literals(Literal::String(string.to_string())),
             Value::Fun(fun) => Type::Fun(
                 SmntEnv::new(HashMap::default()),
                 fun.params_types(),
@@ -797,10 +925,14 @@ impl<'a> SemanticAnalyzer<'a> {
         }
     }
 
-    fn compare_types(&self, x: &Type, y: &Type) -> bool {
-        match (x, y) {
+    fn compare_types(&self, found: &Type, expected: &Type) -> bool {
+        match (found, expected) {
             (Type::UserType(a), Type::UserType(b)) => a.name.lexeme() == b.name.lexeme(),
-            _ => x == y,
+            (Type::Literals(a), Type::Literals(b)) => a == b,
+            (Type::Literals(Literal::Number(_)), Type::Num) => true,
+            (Type::Literals(Literal::String(_)), Type::Str) => true,
+            (Type::Literals(Literal::Boolean(_)), Type::Bool) => true,
+            _ => found == expected,
         }
     }
 

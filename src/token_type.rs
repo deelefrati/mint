@@ -1,5 +1,6 @@
 use crate::{semantic_analyzer::Type, token::Token};
-impl std::fmt::Display for TokenType {
+use std::fmt::Display;
+impl Display for TokenType {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         match self {
             TokenType::LeftParen => write!(f, "("),
@@ -80,7 +81,6 @@ pub enum TokenType {
 
     // One or two character tokens.
     Bang,
-    // BangEqual,
     BangEqualEqual,
     Equal,
     EqualEqualEqual,
@@ -91,10 +91,9 @@ pub enum TokenType {
     And,
     Or,
 
-    // Literals.
+    Number(f64),
     String(std::string::String),
     Identifier,
-    Number(f64),
 
     // keywords
     Assert,
@@ -117,6 +116,43 @@ pub enum TokenType {
     Eof,
 }
 
+impl Display for Literal {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        match self {
+            Literal::Number(num) => write!(f, "{}", num),
+            Literal::String(string) => write!(f, "{}", string),
+            Literal::Boolean(boolean) => write!(f, "{}", boolean),
+        }
+    }
+}
+#[derive(Debug, Clone)]
+pub enum Literal {
+    Number(f64),
+    String(std::string::String),
+    Boolean(bool),
+}
+
+impl PartialEq for Literal {
+    fn eq(&self, other: &Self) -> bool {
+        match (self, other) {
+            (Literal::Number(a), Literal::Number(b)) => a == b,
+            (Literal::String(a), Literal::String(b)) => a == b,
+            (Literal::Boolean(a), Literal::Boolean(b)) => a == b,
+            _ => false,
+        }
+    }
+}
+
+impl Literal {
+    pub fn to_primitive(&self) -> Type {
+        match self {
+            Literal::Number(_) => Type::Num,
+            Literal::String(_) => Type::Str,
+            Literal::Boolean(_) => Type::Bool,
+        }
+    }
+}
+
 #[derive(Debug, PartialEq, Clone)]
 pub enum VarType {
     Number,
@@ -124,6 +160,7 @@ pub enum VarType {
     Boolean,
     Null,
     Function,
+    Literals(Literal),
     UserType(Token),
 }
 impl From<Type> for VarType {
@@ -133,6 +170,7 @@ impl From<Type> for VarType {
             Type::Bool => VarType::Boolean,
             Type::Null => VarType::Null,
             Type::Str => VarType::String,
+            Type::Literals(literal) => VarType::Literals(literal),
             Type::Fun(_, _, _, _) => VarType::Function,
             Type::UserType(mint_type) => VarType::UserType(mint_type.name),
         }

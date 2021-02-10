@@ -1,3 +1,4 @@
+#![allow(clippy::large_enum_variant)]
 use crate::environment::Environment;
 use crate::error::runtime::RuntimeError;
 use crate::interpreter::Interpreter;

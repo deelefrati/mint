@@ -3,7 +3,7 @@ use crate::{
     expr::*,
     stmt::Stmt,
     token::Token,
-    token_type::{TokenType, VarType},
+    token_type::{Literal, TokenType, VarType},
 };
 
 pub struct Parser<'a> {
@@ -457,6 +457,12 @@ impl<'a> Parser<'a> {
                 TokenType::Str => Some(VarType::String),
                 TokenType::Bool => Some(VarType::Boolean),
                 TokenType::Identifier => Some(VarType::UserType(token.clone())),
+                TokenType::String(string) => {
+                    Some(VarType::Literals(Literal::String(string.to_string())))
+                }
+                TokenType::Number(number) => Some(VarType::Literals(Literal::Number(*number))),
+                TokenType::True => Some(VarType::Literals(Literal::Boolean(true))),
+                TokenType::False => Some(VarType::Literals(Literal::Boolean(false))),
                 _ => None,
             } {
                 self.advance();
