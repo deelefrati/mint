@@ -102,6 +102,38 @@ function l(x: number): number {
   } else {
   }
 }
+
+function m(): number {
+  {
+    return 10;
+  }
+}
+function n(): number {
+  {
+    return 10;
+  }
+  if (true) {
+    10;
+  }
+}
+function o(): number {
+  if (true) {
+    return 10;
+  } else {
+    return 10;
+  }
+  {
+    10;
+  }
+}
+function p(): number {
+  if (true) {
+    return 10;
+  }
+  {
+    return 10;
+  }
+}
 // some random comment
 function fo0o(): number {
   const b = 1;
@@ -111,18 +143,18 @@ function fo0o(): number {
 fo0o();
 const b = 10;
 
-function is_odd(x: number) : boolean {
-    if(x === 0){
-        return false;
-    }
-    return is_even(x-1);
+function is_odd(x: number): boolean {
+  if (x === 0) {
+    return false;
+  }
+  return is_even(x - 1);
 }
 
-function is_even(x: number) : boolean {
-    if(x === 0) {
-        return true;
-    }
-    return is_odd(x-1);
+function is_even(x: number): boolean {
+  if (x === 0) {
+    return true;
+  }
+  return is_odd(x - 1);
 }
 
 console.assert(is_odd(1));
@@ -135,24 +167,22 @@ console.assert(is_even(2));
 console.assert(is_even(4));
 console.assert(!is_even(1));
 const a1 = "a";
-function f_1() : string{
-    function g() : string {
-        return a1;
-    }
-    const a1 = "another a";
-    return g();
+function f_1(): string {
+  function g(): string {
+    return a1;
+  }
+  const a1 = "another a";
+  return g();
 }
 
 console.assert(f_1() === "another a");
 
 const x1 = "global";
-if(true) {
-    function show_x(): string {
-        return x1;
-    }
+if (true) {
+  function show_x(): string {
+    return x1;
+  }
 
-    const x1 = "block";
-    console.assert(show_x() === "block");
+  const x1 = "block";
+  console.assert(show_x() === "block");
 }
-
-

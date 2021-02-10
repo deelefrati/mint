@@ -143,9 +143,9 @@ impl<'a> Parser<'a> {
         self.consume(LeftParen)?;
         let cond = self.expression()?;
         self.consume(RightParen)?;
-        let then = self.block()?;
+        let then = self.if_block()?;
         let else_ = if self.next_is(single(Else)).is_some() {
-            self.block()?
+            self.if_block()?
         } else {
             vec![]
         };
@@ -210,6 +210,8 @@ impl<'a> Parser<'a> {
             self.return_(&ret_token)
         } else if self.consume(Console).is_ok() {
             self.console()
+        } else if self.consume(LeftBrace).is_ok() {
+            self.block()
         } else {
             self.expression_statement()
         }
@@ -228,9 +230,12 @@ impl<'a> Parser<'a> {
         ))
     }
 
-    fn block(&mut self) -> Result<Vec<Stmt>, ParserError> {
+    fn if_block(&mut self) -> Result<Vec<Stmt>, ParserError> {
         self.consume(LeftBrace)?;
         Ok(self.list_statements()?)
+    }
+    fn block(&mut self) -> Result<Stmt, ParserError> {
+        Ok(Stmt::Block(self.list_statements()?))
     }
 
     fn list_statements(&mut self) -> Result<Vec<Stmt>, ParserError> {
