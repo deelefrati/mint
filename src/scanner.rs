@@ -51,7 +51,14 @@ impl<'a> Scanner<'a> {
                 '}' => RightBrace,
                 ',' => Comma,
                 '.' => Dot,
-                '-' => Minus,
+                '-' => {
+                    if is_digit(self.peek().unwrap_or_default()) {
+                        self.parse_digit()?
+                    } else {
+                        Minus
+                    }
+                }
+
                 '+' => Plus,
                 '*' => Star,
                 '%' => Mod,
@@ -86,9 +93,9 @@ impl<'a> Scanner<'a> {
                         )));
                     }
                 }
+                '\n' => self.newline(),
                 '/' => self.slash_or_comment(),
                 ' ' | '\r' | '\t' => Blank,
-                '\n' => self.newline(),
                 '"' => {
                     if let Some(string) = self.string() {
                         string
@@ -98,16 +105,7 @@ impl<'a> Scanner<'a> {
                 }
                 c => {
                     if is_digit(c) {
-                        if let Some(number) = self.number() {
-                            number
-                        } else {
-                            return Err(Error::Scanner(ScannerError::InvalidNumber(
-                                self.line,
-                                TokenType::String(self.consumed().to_string()),
-                                self.start_token,
-                                self.end_token,
-                            )));
-                        }
+                        self.parse_digit()?
                     } else if is_alpha(c) {
                         self.identifier_or_keyword()
                     } else {
@@ -210,11 +208,7 @@ impl<'a> Scanner<'a> {
 
     fn slash_or_comment(&mut self) -> TokenType {
         if self.match_char('/') {
-            self.advance();
-            // self.take_while(|ch| ch != '\n');
-            while self.peek() != Some('\n') {
-                self.advance();
-            }
+            self.take_while(|ch| ch != '\n');
             TokenType::Comment
         } else {
             TokenType::Slash
@@ -288,6 +282,19 @@ impl<'a> Scanner<'a> {
             "string" => Some(Str),
             "boolean" => Some(Bool),
             _ => None,
+        }
+    }
+
+    fn parse_digit(&mut self) -> Result<TokenType, Error> {
+        if let Some(number) = self.number() {
+            Ok(number)
+        } else {
+            Err(Error::Scanner(ScannerError::InvalidNumber(
+                self.line,
+                TokenType::String(self.consumed().to_string()),
+                self.start_token,
+                self.end_token,
+            )))
         }
     }
 }

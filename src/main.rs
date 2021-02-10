@@ -28,6 +28,7 @@ fn main() {
             let lines_vec = create_lines_vec(&source_code);
             let mut scan = Scanner::new(&source_code);
             let tokens = scan.scan_tokens();
+            println!("{:?}", tokens);
 
             match tokens {
                 Ok(vec) => {
