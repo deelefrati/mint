@@ -809,9 +809,13 @@ impl<'a> SemanticAnalyzer<'a> {
                 (Type::Literals(Literal::Number(_)), Type::Literals(Literal::Number(_))) => {
                     Type::Bool
                 }
+                (Type::Literals(Literal::Number(_)), Type::Num) => Type::Bool,
+                (Type::Num, Type::Literals(Literal::Number(_))) => Type::Bool,
                 (Type::Literals(Literal::String(_)), Type::Literals(Literal::String(_))) => {
                     Type::Bool
                 }
+                (Type::Literals(Literal::String(_)), Type::Str) => Type::Bool,
+                (Type::Str, Type::Literals(Literal::String(_))) => Type::Bool,
                 _ => {
                     let (line, starts_at, ends_at) = expr.placement();
                     return Err(SemanticError::IncompatibleComparation(
