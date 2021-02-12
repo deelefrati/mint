@@ -21,6 +21,7 @@ impl std::fmt::Display for Type {
             Type::Literals(literal) => write!(f, "{}", literal),
             Type::Fun(_, _, _, _) => write!(f, "Function"),
             Type::UserType(mint_type) => write!(f, "{}", mint_type.name.lexeme()),
+            Type::Union(_) => write!(f, "Union"),
         }
     }
 }
@@ -34,6 +35,7 @@ pub enum Type {
     Literals(Literal),
     Fun(SmntEnv, Vec<VarType>, VarType, Vec<String>),
     UserType(MintType),
+    Union(Vec<(Type, Token)>),
 }
 
 impl std::convert::From<&VarType> for Type {
@@ -51,6 +53,12 @@ impl std::convert::From<&VarType> for Type {
                 Vec::default(),
             ),
             VarType::UserType(token) => Type::UserType(MintType::new(token.clone(), &[])),
+            VarType::Union(var_types) => Type::Union(
+                var_types
+                    .iter()
+                    .map(|(var_type, token)| (var_type.into(), token.clone()))
+                    .collect(),
+            ),
         }
     }
 }
@@ -147,7 +155,7 @@ impl<'a> SemanticAnalyzer<'a> {
     fn hoist_declarations(&mut self, stmts: &'a [Stmt]) -> Vec<&'a Stmt> {
         let mut declarations: Vec<&Stmt> = stmts
             .iter()
-            .filter(|stmt| matches!(stmt, Stmt::Function(_, _, _, _, _) | Stmt::TypeStmt(_,_)))
+            .filter(|stmt| matches!(stmt, Stmt::Function(_, _, _, _, _) | Stmt::TypeStmt(_, _)))
             .collect();
         declarations.iter().for_each(|decl| match decl {
             Stmt::Function(token, params, _, ret_type, _) => self.declare(
@@ -167,7 +175,7 @@ impl<'a> SemanticAnalyzer<'a> {
         });
         let mut not_declarations: Vec<&Stmt> = stmts
             .iter()
-            .filter(|stmt| !matches!(stmt, Stmt::Function(_, _, _, _, _)| Stmt::TypeStmt(_,_) ))
+            .filter(|stmt| !matches!(stmt, Stmt::Function(_, _, _, _, _) | Stmt::TypeStmt(_, _)))
             .collect();
         declarations.append(&mut not_declarations);
         declarations
@@ -332,7 +340,7 @@ impl<'a> SemanticAnalyzer<'a> {
                             }
                         }
                         (Some(VarType::Literals(_)), Type::Literals(_)) => {
-                            if self.compare_types(&var_type.as_ref().unwrap().into(), &t) {
+                            if self.compare_types(&t, &var_type.as_ref().unwrap().into()) {
                                 if let Some((_, true)) = self.define(var_name, t) {
                                     let (line, starts_at, ends_at) = expr.placement();
                                     self.errors.push(Error::Semantic(
@@ -344,6 +352,18 @@ impl<'a> SemanticAnalyzer<'a> {
                                         ),
                                     ));
                                 }
+                            } else {
+                                let (line, starts_at, ends_at) = expr.placement();
+                                let expected: VarType = var_type.clone().unwrap();
+                                self.errors.push(Error::Semantic(
+                                    SemanticError::IncompatibleDeclaration(
+                                        line,
+                                        starts_at,
+                                        ends_at,
+                                        expected,
+                                        t.clone(),
+                                    ),
+                                ))
                             }
                         }
                         (None, Type::Literals(literal)) => {
@@ -357,6 +377,71 @@ impl<'a> SemanticAnalyzer<'a> {
                                         var_name.clone(),
                                     ),
                                 ));
+                            }
+                        }
+                        (Some(VarType::Union(union)), Type::Literals(literal)) => {
+                            if self.compare_types(&t, &var_type.as_ref().unwrap().into()) {
+                                let res = union.iter().any(|(var_type, _)| match var_type {
+                                    VarType::Literals(lit) => lit.clone() == literal,
+                                    _ => false,
+                                });
+                                if let Some((_, true)) = self.define(
+                                    var_name,
+                                    if res {
+                                        t.clone()
+                                    } else {
+                                        literal.to_primitive()
+                                    },
+                                ) {
+                                    let (line, starts_at, ends_at) = expr.placement();
+                                    self.errors.push(Error::Semantic(
+                                        SemanticError::VariableOverwrited(
+                                            line,
+                                            starts_at,
+                                            ends_at,
+                                            var_name.clone(),
+                                        ),
+                                    ));
+                                }
+                            } else {
+                                let (line, starts_at, ends_at) = expr.placement();
+                                let expected: VarType = var_type.clone().unwrap();
+                                self.errors.push(Error::Semantic(
+                                    SemanticError::IncompatibleDeclaration(
+                                        line,
+                                        starts_at,
+                                        ends_at,
+                                        expected,
+                                        t.clone(),
+                                    ),
+                                ))
+                            }
+                        }
+                        (Some(VarType::Union(_)), _) => {
+                            if self.compare_types(&t, &var_type.as_ref().unwrap().into()) {
+                                if let Some((_, true)) = self.define(var_name, t) {
+                                    let (line, starts_at, ends_at) = expr.placement();
+                                    self.errors.push(Error::Semantic(
+                                        SemanticError::VariableOverwrited(
+                                            line,
+                                            starts_at,
+                                            ends_at,
+                                            var_name.clone(),
+                                        ),
+                                    ));
+                                }
+                            } else {
+                                let (line, starts_at, ends_at) = expr.placement();
+                                let expected: VarType = var_type.clone().unwrap();
+                                self.errors.push(Error::Semantic(
+                                    SemanticError::IncompatibleDeclaration(
+                                        line,
+                                        starts_at,
+                                        ends_at,
+                                        expected,
+                                        t.clone(),
+                                    ),
+                                ))
                             }
                         }
                         (None, _) => {
@@ -530,7 +615,7 @@ impl<'a> SemanticAnalyzer<'a> {
                 }
             }
         }
-
+        //    println!("{:#?}", self.symbol_table);
         if self.errors.is_empty() {
             #[allow(clippy::map_clone)]
             let x: Vec<Stmt> = hoisted_stmts.iter_mut().map(|s| s.clone()).collect();
@@ -950,6 +1035,7 @@ impl<'a> SemanticAnalyzer<'a> {
             (Type::Literals(Literal::Number(_)), Type::Num) => true,
             (Type::Literals(Literal::String(_)), Type::Str) => true,
             (Type::Literals(Literal::Boolean(_)), Type::Bool) => true,
+            (_, Type::Union(union)) => union.iter().any(|(t, _)| self.compare_types(found, t)),
             _ => found == expected,
         }
     }

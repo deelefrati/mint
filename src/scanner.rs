@@ -80,20 +80,8 @@ impl<'a> Scanner<'a> {
                         )));
                     }
                 }
-
-                '|' => {
-                    if self.match_char('|') {
-                        Or
-                    } else {
-                        return Err(Error::Scanner(ScannerError::InvalidToken(
-                            self.line,
-                            TokenType::Or, //TODO formartar erro corretamente
-                            self.start_token,
-                            self.end_token,
-                        )));
-                    }
-                }
                 '\n' => self.newline(),
+                '|' => self.match_char_or_else('|', Or, Pipe),
                 '/' => self.slash_or_comment(),
                 ' ' | '\r' | '\t' => Blank,
                 '"' => {

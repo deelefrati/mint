@@ -81,7 +81,7 @@ impl SemanticError {
                     *line,
                     Some(*starts_at),
                     Some(*ends_at),
-                    format!("Declared type is {:?}, but the assigned expression evaluates to {}", expected, found),
+                    format!("Declared type is {}, but the assigned expression evaluates to {}", expected, found),
                     Some(print_marker(*starts_at, *ends_at, Some(&format!("evaluates to {}", found)))),
                 ),
             SemanticError::VariableNotDeclared(line, starts_at, ends_at, var_name) => static_error_template(

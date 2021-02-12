@@ -455,8 +455,23 @@ impl<'a> Parser<'a> {
     }
 
     fn next_is_type(&mut self) -> Option<(VarType, Token)> {
+        if let Some((t, token)) = self.is_type() {
+            if self.next_is(single(Pipe)).is_some() {
+                if let Some(union) = self.union((t, token.clone())) {
+                    return Some((VarType::Union(union), token));
+                } else {
+                    return None;
+                }
+            }
+            return Some((t, token));
+        }
+
+        None
+    }
+
+    fn is_type(&mut self) -> Option<(VarType, Token)> {
         if let Some(token) = self.tokens.first() {
-            if let Some(t) = match token.token_type() {
+            if let Some(tt) = match token.token_type() {
                 TokenType::Null => Some(VarType::Null),
                 TokenType::Num => Some(VarType::Number),
                 TokenType::Str => Some(VarType::String),
@@ -471,11 +486,28 @@ impl<'a> Parser<'a> {
                 _ => None,
             } {
                 self.advance();
-                return Some((t, token.clone()));
+                Some((tt, token.clone()))
+            } else {
+                None
+            }
+        } else {
+            None
+        }
+    }
+
+    fn union(&mut self, first: (VarType, Token)) -> Option<Vec<(VarType, Token)>> {
+        let mut types = vec![first];
+        while let Some(type_) = self.is_type() {
+            types.push(type_);
+            if self.next_is(single(Pipe)).is_none() {
+                return Some(types);
             }
         }
-
-        None
+        if types.is_empty() {
+            None
+        } else {
+            Some(types)
+        }
     }
 }
 fn single(tt: TokenType) -> impl Fn(&TokenType) -> Option<()> {
