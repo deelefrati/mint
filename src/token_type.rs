@@ -49,6 +49,7 @@ impl Display for TokenType {
             TokenType::Const => write!(f, "const"),
             TokenType::Eof => write!(f, "eof"),
             TokenType::Assert => write!(f, "assert"),
+            TokenType::Pipe => write!(f, "|"),
         }
     }
 }
@@ -78,6 +79,7 @@ pub enum TokenType {
     Star,
     Blank,
     NewLine,
+    Pipe,
 
     // One or two character tokens.
     Bang,
@@ -153,6 +155,20 @@ impl Literal {
     }
 }
 
+impl std::fmt::Display for VarType {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        match self {
+            VarType::Null => write!(f, "Null"),
+            VarType::Number => write!(f, "Number"),
+            VarType::Boolean => write!(f, "Boolean"),
+            VarType::String => write!(f, "String"),
+            VarType::Literals(literal) => write!(f, "{}", literal),
+            VarType::Function => write!(f, "Function"),
+            VarType::UserType(mint_type) => write!(f, "{}", mint_type.lexeme()),
+            VarType::Union(_) => write!(f, "Union"),
+        }
+    }
+}
 #[derive(Debug, PartialEq, Clone)]
 pub enum VarType {
     Number,
@@ -162,6 +178,7 @@ pub enum VarType {
     Function,
     Literals(Literal),
     UserType(Token),
+    Union(Vec<(VarType, Token)>),
 }
 impl From<Type> for VarType {
     fn from(x: Type) -> Self {
@@ -173,6 +190,12 @@ impl From<Type> for VarType {
             Type::Literals(literal) => VarType::Literals(literal),
             Type::Fun(_, _, _, _) => VarType::Function,
             Type::UserType(mint_type) => VarType::UserType(mint_type.name),
+            Type::Union(types) => VarType::Union(
+                types
+                    .iter()
+                    .map(|(type_, token)| (type_.to_owned().into(), token.clone()))
+                    .collect(),
+            ),
         }
     }
 }
