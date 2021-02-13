@@ -8,7 +8,7 @@ pub struct MintType {
 
 impl MintType {
     pub fn call(&self, args: &[(Token, Value)]) -> MintInstance {
-        MintInstance::new(self.clone(), args)
+        MintInstance::new(args)
     }
 
     pub fn new(name: Token, attrs: &[(Token, VarType)]) -> Self {
@@ -24,16 +24,14 @@ impl MintType {
     }
 }
 
-#[derive(Clone, Debug)]
+#[derive(Clone, PartialEq, Debug)]
 pub struct MintInstance {
-    pub mint_type: MintType,
     pub fields: HashMap<String, Value>,
 }
 
 impl MintInstance {
-    pub fn new(mint_type: MintType, args: &[(Token, Value)]) -> Self {
+    pub fn new(args: &[(Token, Value)]) -> Self {
         let mut instance = Self {
-            mint_type,
             fields: HashMap::default(),
         };
         args.iter().for_each(|(id, value)| {
@@ -47,18 +45,18 @@ impl MintInstance {
     }
 }
 
-impl PartialEq for MintInstance {
-    fn eq(&self, other: &Self) -> bool {
-        if self.mint_type.name.lexeme() != other.mint_type.name.lexeme() {
-            false
-        } else {
-            for (x_key, x_val) in self.fields.iter() {
-                if x_val != other.fields.get(x_key).unwrap() {
-                    return false;
-                }
-            }
-
-            true
-        }
-    }
-}
+//impl PartialEq for MintInstance {
+//    fn eq(&self, other: &Self) -> bool {
+//        if self.mint_type.name.lexeme() != other.mint_type.name.lexeme() {
+//            false
+//        } else {
+//            for (x_key, x_val) in self.fields.iter() {
+//                if x_val != other.fields.get(x_key).unwrap() {
+//                    return false;
+//                }
+//            }
+//
+//            true
+//        }
+//    }
+//}

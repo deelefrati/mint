@@ -174,28 +174,11 @@ impl<'a> Parser<'a> {
     fn var_declaration(&mut self) -> Result<Stmt, ParserError> {
         let identifier = self.consume(Identifier)?;
         if self.next_is(single(Colon)).is_some() {
-            let (var_type, id) = self.consume_type()?;
+            let (var_type, _id) = self.consume_type()?;
             self.consume(Equal)?;
-            if matches!(id.token_type(), Identifier) && self.next_is(single(LeftBrace)).is_some() {
-                let mut variables = vec![];
-                while self.next_is(single(RightBrace)).is_none() {
-                    let identifier = self.consume(Identifier)?;
-                    self.consume(Colon)?;
-                    let expr = self.expression()?;
-                    self.consume(Comma)?;
-                    variables.push((identifier, expr));
-                }
-                self.consume(Semicolon)?;
-                Ok(Stmt::VarStmt(
-                    identifier.lexeme(),
-                    Some(VarType::UserType(id.clone())),
-                    Expr::Instantiate(id, variables),
-                ))
-            } else {
-                let expr = self.expression()?;
-                self.consume(Semicolon)?;
-                Ok(Stmt::VarStmt(identifier.lexeme(), Some(var_type), expr))
-            }
+            let expr = self.expression()?;
+            self.consume(Semicolon)?;
+            Ok(Stmt::VarStmt(identifier.lexeme(), Some(var_type), expr))
         } else if self.next_is(single(Equal)).is_some() {
             let expr = self.expression()?;
             self.consume(Semicolon)?;
@@ -283,6 +266,18 @@ impl<'a> Parser<'a> {
 
     fn expression(&mut self) -> Result<Expr, ParserError> {
         self.or()
+    }
+
+    fn object(&mut self) -> Result<Expr, ParserError> {
+        let mut variables = vec![];
+        while self.next_is(single(RightBrace)).is_none() {
+            let identifier = self.consume(Identifier)?;
+            self.consume(Colon)?;
+            let expr = self.expression()?;
+            self.consume(Comma)?;
+            variables.push((identifier, expr));
+        }
+        Ok(Expr::Instantiate(variables))
     }
 
     fn or(&mut self) -> Result<Expr, ParserError> {
@@ -421,6 +416,8 @@ impl<'a> Parser<'a> {
             Ok(Expr::Literal(op_and_token))
         } else if let Some((_, token)) = self.next_is(single(Identifier)) {
             Ok(Expr::Variable(token.clone(), token.lexeme()))
+        } else if self.next_is(single(LeftBrace)).is_some() {
+            self.object()
         } else {
             Err(ParserError::MissingExpression(self.current_line))
         }

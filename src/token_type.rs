@@ -162,6 +162,7 @@ impl std::fmt::Display for VarType {
             VarType::Number => write!(f, "Number"),
             VarType::Boolean => write!(f, "Boolean"),
             VarType::String => write!(f, "String"),
+            VarType::Object => write!(f, "Object"),
             VarType::Literals(literal) => write!(f, "{}", literal),
             VarType::Function => write!(f, "Function"),
             VarType::UserType(mint_type) => write!(f, "{}", mint_type.lexeme()),
@@ -176,6 +177,7 @@ pub enum VarType {
     Boolean,
     Null,
     Function,
+    Object,
     Literals(Literal),
     UserType(Token),
     Union(Vec<(VarType, Token)>),
@@ -187,6 +189,7 @@ impl From<Type> for VarType {
             Type::Bool => VarType::Boolean,
             Type::Null => VarType::Null,
             Type::Str => VarType::String,
+            Type::Object(_) => VarType::Object,
             Type::Literals(literal) => VarType::Literals(literal),
             Type::Fun(_, _, _, _) => VarType::Function,
             Type::UserType(mint_type) => VarType::UserType(mint_type.name),
@@ -196,6 +199,28 @@ impl From<Type> for VarType {
                     .map(|(type_, token)| (type_.to_owned().into(), token.clone()))
                     .collect(),
             ),
+        }
+    }
+}
+
+impl VarType {
+    pub fn has_user_type(&self) -> bool {
+        match self {
+            VarType::UserType(_) => true,
+            VarType::Union(union) => union.iter().any(|(t, _)| matches!(t, VarType::UserType(_))),
+            _ => false,
+        }
+    }
+
+    pub fn get_tokens(&self) -> Vec<Token> {
+        match self {
+            VarType::UserType(token) => vec![token.clone()],
+            VarType::Union(union) => union
+                .iter()
+                .filter(|(var_type, _)| matches!(var_type, VarType::UserType(_)))
+                .map(|(_, token)| token.clone())
+                .collect(),
+            _ => vec![],
         }
     }
 }
