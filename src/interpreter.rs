@@ -2,7 +2,7 @@ use crate::{
     environment::Environment,
     error::{runtime::RuntimeError, Error},
     expr::*,
-    mint_type::MintType,
+    mint_type::{MintInstance, MintType},
     stmt::*,
     token::Token,
 };
@@ -199,7 +199,7 @@ impl Interpreter {
             Expr::Literal(value_and_token) => Ok(value_and_token.clone().0),
             Expr::Call(callee, params) => self.eval_call(expr, callee, params),
             Expr::Get(expr, token) => self.eval_get(expr, token),
-            Expr::Instantiate(type_token, args) => self.eval_instantiate(type_token, args),
+            Expr::Instantiate(args) => self.eval_instantiate(args),
         }
     }
 
@@ -216,25 +216,21 @@ impl Interpreter {
         }
     }
 
-    fn eval_instantiate(
-        &mut self,
-        type_token: &Token,
-        args: &[(Token, Expr)],
-    ) -> InterpreterResult {
-        if let Some(Value::Type(mint_type)) = self.environment.get(&type_token.lexeme()) {
-            let mut values = vec![];
-            for (arg, expr) in args {
-                values.push((arg.clone(), self.eval_expr(expr)?));
-            }
-            Ok(Value::TypeInstance(mint_type.call(&values)))
-        } else {
-            Err(RuntimeError::NotInstantiable(
-                type_token.line(),
-                type_token.starts_at(),
-                type_token.ends_at(),
-                type_token.lexeme(),
-            ))
+    fn eval_instantiate(&mut self, args: &[(Token, Expr)]) -> InterpreterResult {
+        //if let Some(Value::Type(mint_type)) = self.environment.get(&type_token.lexeme()) {
+        let mut values = vec![];
+        for (arg, expr) in args {
+            values.push((arg.clone(), self.eval_expr(expr)?));
         }
+        Ok(Value::TypeInstance(MintInstance::new(&values)))
+        //} else {
+        //    Err(RuntimeError::NotInstantiable(
+        //        type_token.line(),
+        //        type_token.starts_at(),
+        //        type_token.ends_at(),
+        //        type_token.lexeme(),
+        //    ))
+        //}
     }
 
     fn eval_call(
