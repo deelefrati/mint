@@ -11,6 +11,19 @@ use std::collections::HashMap;
 
 type SmntEnv = Environment<(Type, bool)>;
 
+fn print_union(union: &[(Type, Token)]) -> String {
+    let mut str = "".to_string();
+
+    union
+        .iter()
+        .for_each(|(t, _)| str.push_str(&format!("{} | ", t)));
+
+    str.pop();
+    str.pop();
+    str.pop();
+    str
+}
+
 impl std::fmt::Display for Type {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         match self {
@@ -21,7 +34,7 @@ impl std::fmt::Display for Type {
             Type::Literals(literal) => write!(f, "{}", literal),
             Type::Fun(_, _, _, _) => write!(f, "Function"),
             Type::UserType(mint_type) => write!(f, "{}", mint_type.name.lexeme()),
-            Type::Union(_) => write!(f, "Union"),
+            Type::Union(union) => write!(f, "{}", print_union(union)),
         }
     }
 }
@@ -222,6 +235,7 @@ impl<'a> SemanticAnalyzer<'a> {
                         }
                     }
                 }
+
                 Stmt::VarStmt(var_name, var_type, expr) => match self.analyze_one(&expr) {
                     Ok(t) => match (var_type, t.clone()) {
                         (Some(VarType::Boolean), Type::Bool) => {
@@ -649,12 +663,12 @@ impl<'a> SemanticAnalyzer<'a> {
             Expr::Literal((value, _)) => Ok(self.analyze_literal(value)),
             Expr::Variable(token, identifier) => self.analyze_var_expr(token, identifier),
             Expr::Call(callee, args) => self.analyze_call_expr(callee, args, expr),
-            Expr::Instantiate(t, args) => self.analyze_instatiation(t, args),
+            Expr::Instantiate(t, args, var_type) => self.analyze_instatiation(t, args, var_type),
             Expr::Get(expr, token) => self.analyze_get(expr, token),
         }
     }
 
-    fn analyze_get(&mut self, expr: &Box<Expr>, token: &Token) -> Result<Type, SemanticError> {
+    fn analyze_get(&mut self, expr: &Expr, token: &Token) -> Result<Type, SemanticError> {
         let expr_type = self.analyze_one(expr)?;
         if let Type::UserType(user_type) = expr_type.clone() {
             if let Some(Type::UserType(complete_type)) = self.get_var(&user_type.name.lexeme()) {
@@ -680,48 +694,114 @@ impl<'a> SemanticAnalyzer<'a> {
         &mut self,
         t: &Token,
         args: &[(Token, Expr)],
+        var_type: &VarType,
     ) -> Result<Type, SemanticError> {
-        if let Some(type_) = self.get_var(&t.lexeme()) {
-            match type_.clone() {
-                Type::UserType(mint_type) => {
-                    self.instance_to_user_type(args, &mint_type.attrs, &type_)?;
-                    Ok(Type::UserType(mint_type))
-                }
-                Type::Union(union) => {
-                    let mut attrs = HashMap::default();
-                    if let Some(_) = union.iter().find(|(type_, token)| match type_ {
-                        Type::UserType(mint_type) => {
-                            attrs = mint_type.attrs.clone();
-                            mint_type.name.lexeme() == token.lexeme()
+        match var_type {
+            VarType::Union(union) => {
+                let user_types: Vec<&(VarType, Token)> = union
+                    .iter()
+                    .filter(|(vt, _)| matches!(vt, VarType::UserType(_)))
+                    .collect();
+                if user_types.is_empty() {
+                    Err(SemanticError::TypeNotAssignable(
+                        t.line(),
+                        t.starts_at(),
+                        t.ends_at(),
+                        var_type.into(),
+                        t.lexeme(),
+                    ))
+                } else {
+                    let types_result: Result<Vec<(Type, Token)>, SemanticError> = user_types
+                        .iter()
+                        .map(|(_, t)| {
+                            if let Some(type_) = self.get_var(&t.lexeme()) {
+                                Ok((type_, t.clone()))
+                            } else {
+                                Err(SemanticError::TypeNotDeclared(
+                                    t.line(),
+                                    t.starts_at(),
+                                    t.ends_at(),
+                                    t.lexeme(),
+                                ))
+                            }
+                        })
+                        .collect();
+                    match types_result {
+                        Ok(types) => {
+                            let mut attrs = HashMap::default();
+                            let compatible_types: Vec<&(Type, Token)> = types
+                                .iter()
+                                .filter(|(type_, _)| match type_ {
+                                    Type::UserType(mint_type) => {
+                                        let res = self.check_attrs(args, &mint_type.attrs);
+                                        if res {
+                                            attrs = mint_type.attrs.clone();
+                                        }
+                                        res
+                                    }
+                                    _ => false,
+                                })
+                                .collect();
+                            match compatible_types.len().cmp(&1) {
+                                std::cmp::Ordering::Less => Err(SemanticError::TypeNotAssignable(
+                                    t.line(),
+                                    t.starts_at(),
+                                    t.ends_at(),
+                                    var_type.into(),
+                                    t.lexeme(),
+                                )),
+                                std::cmp::Ordering::Equal => {
+                                    let (type_, _) = compatible_types.first().unwrap();
+                                    self.instance_to_user_type(args, &attrs, type_)?;
+                                    Ok(Type::UserType(MintType::new(t.clone(), attrs)))
+                                }
+                                std::cmp::Ordering::Greater => Err(SemanticError::IdenticalTypes(
+                                    t.line(),
+                                    t.starts_at(),
+                                    t.ends_at(),
+                                    Type::Union(
+                                        compatible_types
+                                            .iter()
+                                            .map(|(type_, token)| (type_.clone(), token.clone()))
+                                            .collect(),
+                                    ),
+                                )),
+                            }
                         }
-                        _ => false,
-                    }) {
-                        self.instance_to_user_type(args, &attrs, &type_)?;
-                        Ok(Type::UserType(MintType::new(t.clone(), attrs)))
-                    } else {
-                        Err(SemanticError::TypeNotAssignable(
+                        Err(err) => Err(err),
+                    }
+                }
+            }
+            VarType::UserType(t) => {
+                if let Some(type_) = self.get_var(&t.lexeme()) {
+                    match type_.clone() {
+                        Type::UserType(mint_type) => {
+                            self.instance_to_user_type(args, &mint_type.attrs, &type_)?;
+                            Ok(Type::UserType(mint_type))
+                        }
+                        _ => Err(SemanticError::TypeNotIntantiable(
                             t.line(),
                             t.starts_at(),
                             t.ends_at(),
                             t.lexeme(),
-                            type_,
-                        ))
+                        )),
                     }
+                } else {
+                    Err(SemanticError::TypeNotDeclared(
+                        t.line(),
+                        t.starts_at(),
+                        t.ends_at(),
+                        t.lexeme(),
+                    ))
                 }
-                _ => Err(SemanticError::TypeNotIntantiable(
-                    t.line(),
-                    t.starts_at(),
-                    t.ends_at(),
-                    t.lexeme(),
-                )),
             }
-        } else {
-            Err(SemanticError::TypeNotDeclared(
+            _ => Err(SemanticError::TypeNotAssignable(
                 t.line(),
                 t.starts_at(),
                 t.ends_at(),
+                var_type.into(),
                 t.lexeme(),
-            ))
+            )),
         }
     }
 
@@ -1025,8 +1105,8 @@ impl<'a> SemanticAnalyzer<'a> {
     }
 
     fn compare_types(&self, found: &Type, expected: &Type) -> bool {
-        println!("{:?} \n {:?}", found, expected);
-        println!();
+        //println!("{:?} \n {:?}", found, expected);
+        //println!();
         match (found, expected) {
             (Type::UserType(a), Type::UserType(b)) => a.name.lexeme() == b.name.lexeme(),
             (Type::Literals(a), Type::Literals(b)) => a == b,
@@ -1099,35 +1179,24 @@ impl<'a> SemanticAnalyzer<'a> {
             Expr::Literal(_) => vec![],
             Expr::Variable(token, _) => vec![token.lexeme()],
             Expr::Call(callee, _params) => self.expr_keys(callee),
-            Expr::Instantiate(t, _) => vec![t.lexeme()],
+            Expr::Instantiate(t, _, _) => vec![t.lexeme()],
             Expr::Get(_, token) => vec![token.lexeme()],
         }
     }
 
-    //fn union_into(
-    //    &mut self,
-    //    union: &[(VarType, Token)],
-    //) -> Result<Vec<(Type, Token)>, SemanticError> {
-    //    let new_union: Result<Vec<(Type, Token)>, _> = union
-    //        .iter()
-    //        .map(|(var_type, token)| match var_type {
-    //            VarType::UserType(t) => {
-    //                if let Some(user_type) = self.get_var(&t.lexeme()) {
-    //                    Ok((user_type, token.clone()))
-    //                } else {
-    //                    Err(SemanticError::TypeNotDeclared(
-    //                        t.line(),
-    //                        t.starts_at(),
-    //                        t.ends_at(),
-    //                        t.lexeme(),
-    //                    ))
-    //                }
-    //            }
-    //            type_ => Ok((type_.into(), token.clone())),
-    //        })
-    //        .collect();
-    //    new_union
-    //}
+    fn check_attrs(&mut self, args: &[(Token, Expr)], attrs: &HashMap<String, VarType>) -> bool {
+        args.iter().all(|(t, expr)| {
+            if let Ok(expr_type) = self.analyze_one(expr) {
+                if let Some(attr_type) = attrs.get(&t.lexeme()) {
+                    self.compare_types(&expr_type, &attr_type.into())
+                } else {
+                    false
+                }
+            } else {
+                false
+            }
+        })
+    }
 
     fn instance_to_user_type(
         &mut self,
