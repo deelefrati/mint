@@ -117,7 +117,7 @@ impl Interpreter {
             (ComparationOp::StrictNotEqual, Boolean(a), Boolean(b)) => Boolean(a != b),
             (ComparationOp::StrictNotEqual, Str(a), Str(b)) => Boolean(a != b),
             (ComparationOp::StrictNotEqual, Null, Null) => Boolean(false),
-            (ComparationOp::StrictNotEqual, TypeInstance(a), TypeInstance(b)) => Boolean(a == b),
+            (ComparationOp::StrictNotEqual, TypeInstance(a), TypeInstance(b)) => Boolean(a != b),
             (ComparationOp::StrictNotEqual, _, Null) => Boolean(true),
             (ComparationOp::StrictNotEqual, Null, _) => Boolean(true),
 
@@ -199,7 +199,7 @@ impl Interpreter {
             Expr::Literal(value_and_token) => Ok(value_and_token.clone().0),
             Expr::Call(callee, params) => self.eval_call(expr, callee, params),
             Expr::Get(expr, token) => self.eval_get(expr, token),
-            Expr::Instantiate(type_token, args) => self.eval_instantiate(type_token, args),
+            Expr::Instantiate(type_token, args, _) => self.eval_instantiate(type_token, args),
         }
     }
 

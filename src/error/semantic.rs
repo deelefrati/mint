@@ -24,7 +24,8 @@ pub enum SemanticError {
     TypeAlreadyDeclared(usize, usize, usize),
     TypeNotDeclared(usize, usize, usize, String),
     PropertyDoesNotExist(usize, usize, usize, String, Type),
-    TypeNotAssignable(usize, usize, usize, String, Type),
+    TypeNotAssignable(usize, usize, usize, Type, String),
+    IdenticalTypes(usize, usize, usize, Type),
 }
 
 impl SemanticError {
@@ -190,6 +191,14 @@ impl SemanticError {
                     Some(*starts_at),
                     Some(*ends_at),
                     format!("Type {} is not assignable to type {}", found, expected),
+                    Some(print_marker(*starts_at, *ends_at,None ))),
+                SemanticError::IdenticalTypes(line, starts_at, ends_at, types) => static_error_template(
+                    error_type,
+                    source_vec,
+                    *line,
+                    Some(*starts_at),
+                    Some(*ends_at),
+                    format!("The types {} have the same declaration. It is not possible to create a union with two equal types", types),
                     Some(print_marker(*starts_at, *ends_at,None ))),
         }
     }
