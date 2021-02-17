@@ -6,6 +6,8 @@ use crate::{
     token_type::{Literal, TokenType, VarType},
 };
 
+use std::collections::HashMap;
+
 pub struct Parser<'a> {
     tokens: &'a [Token],
     current_line: usize,
@@ -141,7 +143,7 @@ impl<'a> Parser<'a> {
 
     fn if_statement(&mut self) -> Result<Stmt, ParserError> {
         self.consume(LeftParen)?;
-        let cond = self.expression()?;
+        let cond = self.expression(None)?;
         self.consume(RightParen)?;
         let then = self.if_block()?;
         let else_ = if self.next_is(single(Else)).is_some() {
@@ -156,12 +158,12 @@ impl<'a> Parser<'a> {
         let identifier = self.consume(Identifier)?;
         self.consume(Equal)?;
         self.consume(LeftBrace)?;
-        let mut variables = vec![];
+        let mut variables = HashMap::default();
         while self.next_is(single(RightBrace)).is_none() {
             let id = self.consume(Identifier)?;
             self.consume(Colon)?;
             let (var_type, _) = self.consume_type()?;
-            variables.push((id, var_type));
+            variables.insert(id.lexeme(), var_type);
             self.consume(Comma)?;
         }
         self.consume(Semicolon)?;
@@ -174,13 +176,13 @@ impl<'a> Parser<'a> {
     fn var_declaration(&mut self) -> Result<Stmt, ParserError> {
         let identifier = self.consume(Identifier)?;
         if self.next_is(single(Colon)).is_some() {
-            let (var_type, _id) = self.consume_type()?;
+            let (var_type, id) = self.consume_type()?;
             self.consume(Equal)?;
-            let expr = self.expression()?;
+            let expr = self.expression(Some(id))?;
             self.consume(Semicolon)?;
             Ok(Stmt::VarStmt(identifier.lexeme(), Some(var_type), expr))
         } else if self.next_is(single(Equal)).is_some() {
-            let expr = self.expression()?;
+            let expr = self.expression(None)?;
             self.consume(Semicolon)?;
             Ok(Stmt::VarStmt(identifier.lexeme(), None, expr))
         } else {
@@ -204,7 +206,7 @@ impl<'a> Parser<'a> {
         Ok(Stmt::Return(
             token.clone(),
             if self.next_is(single(Semicolon)).is_none() {
-                let expr = self.expression()?;
+                let expr = self.expression(None)?;
                 self.consume(Semicolon)?;
                 Some(expr)
             } else {
@@ -238,14 +240,14 @@ impl<'a> Parser<'a> {
             self.consume(LeftParen)?;
             let mut exprs: Vec<Expr> = vec![];
             while self.next_is(single(RightParen)).is_none() {
-                exprs.push(self.expression()?);
+                exprs.push(self.expression(None)?);
                 self.next_is(single(Comma));
             }
             self.consume(Semicolon)?;
             Ok(Stmt::PrintStmt(exprs))
         } else if self.next_is(single(Assert)).is_some() {
             self.consume(LeftParen)?;
-            let expr = self.expression()?;
+            let expr = self.expression(None)?;
             self.consume(RightParen)?;
             self.consume(Semicolon)?;
             Ok(Stmt::AssertStmt(expr))
@@ -255,7 +257,7 @@ impl<'a> Parser<'a> {
     }
 
     fn expression_statement(&mut self) -> Result<Stmt, ParserError> {
-        match self.expression() {
+        match self.expression(None) {
             Ok(value) => {
                 self.consume(Semicolon)?;
                 Ok(Stmt::ExprStmt(value))
@@ -264,20 +266,24 @@ impl<'a> Parser<'a> {
         }
     }
 
-    fn expression(&mut self) -> Result<Expr, ParserError> {
-        self.or()
+    fn expression(&mut self, t: Option<Token>) -> Result<Expr, ParserError> {
+        if self.next_is(single(LeftBrace)).is_some() {
+            self.object(t)
+        } else {
+            self.or()
+        }
     }
 
-    fn object(&mut self) -> Result<Expr, ParserError> {
+    fn object(&mut self, t: Option<Token>) -> Result<Expr, ParserError> {
         let mut variables = vec![];
         while self.next_is(single(RightBrace)).is_none() {
             let identifier = self.consume(Identifier)?;
             self.consume(Colon)?;
-            let expr = self.expression()?;
+            let expr = self.expression(None)?;
             self.consume(Comma)?;
             variables.push((identifier, expr));
         }
-        Ok(Expr::Instantiate(variables))
+        Ok(Expr::Instantiate(t.unwrap().clone(), variables))
     }
 
     fn or(&mut self) -> Result<Expr, ParserError> {
@@ -390,9 +396,9 @@ impl<'a> Parser<'a> {
     fn finish_call(&mut self, callee: Expr) -> Result<Expr, ParserError> {
         let mut arguments: Vec<Expr> = Vec::new();
         if self.next_is(single(RightParen)).is_none() {
-            arguments.push(self.expression()?);
+            arguments.push(self.expression(None)?);
             while self.next_is(single(Comma)).is_some() {
-                arguments.push(self.expression()?);
+                arguments.push(self.expression(None)?);
             }
 
             self.consume(RightParen)?;
@@ -402,7 +408,7 @@ impl<'a> Parser<'a> {
 
     fn primary(&mut self) -> Result<Expr, ParserError> {
         if self.next_is(single(LeftParen)).is_some() {
-            let expr = self.expression()?;
+            let expr = self.expression(None)?;
             self.consume(RightParen)?;
             Ok(Expr::Grouping(expr.into()))
         } else if let Some(op_and_token) = self.next_is(|tt| match tt {
@@ -416,8 +422,6 @@ impl<'a> Parser<'a> {
             Ok(Expr::Literal(op_and_token))
         } else if let Some((_, token)) = self.next_is(single(Identifier)) {
             Ok(Expr::Variable(token.clone(), token.lexeme()))
-        } else if self.next_is(single(LeftBrace)).is_some() {
-            self.object()
         } else {
             Err(ParserError::MissingExpression(self.current_line))
         }

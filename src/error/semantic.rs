@@ -24,7 +24,7 @@ pub enum SemanticError {
     TypeAlreadyDeclared(usize, usize, usize),
     TypeNotDeclared(usize, usize, usize, String),
     PropertyDoesNotExist(usize, usize, usize, String, Type),
-    CannotInferObjToType(usize, usize, usize, String),
+    TypeNotAssignable(usize, usize, usize, String, Type),
 }
 
 impl SemanticError {
@@ -183,14 +183,14 @@ impl SemanticError {
                     Some(*ends_at),
                     format!("Property \"{}\" does not exist in ty pe \"{}\"", field, type_),
                     Some(print_marker(*starts_at, *ends_at, None))),
-                SemanticError::CannotInferObjToType(line, starts_at, ends_at, var_name) => static_error_template(
+                SemanticError::TypeNotAssignable(line, starts_at, ends_at, found, expected) => static_error_template(
                     error_type,
                     source_vec,
                     *line,
                     Some(*starts_at),
                     Some(*ends_at),
-                    "Cannot infer Object Type".to_string(),
-                    Some(print_marker(*starts_at, *ends_at, Some(&format!("Explictly declare the Type of the object. Eg: const {} : ExampleType ... = ", var_name))))),
+                    format!("Type {} is not assignable to type {}", found, expected),
+                    Some(print_marker(*starts_at, *ends_at,None ))),
         }
     }
 }
