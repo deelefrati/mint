@@ -1,6 +1,7 @@
 use crate::expr::Expr;
 use crate::token::Token;
 use crate::token_type::VarType;
+use std::collections::HashMap;
 #[derive(PartialEq, Debug, Clone)]
 pub enum Stmt {
     ExprStmt(Expr),
@@ -17,5 +18,5 @@ pub enum Stmt {
         Option<Token>,
     ),
     Return(Token, Option<Expr>),
-    TypeStmt(Token, Vec<(Token, VarType)>),
+    TypeStmt(Token, HashMap<String, VarType>),
 }

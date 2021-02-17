@@ -2,7 +2,7 @@ use crate::{
     environment::Environment,
     error::{runtime::RuntimeError, Error},
     expr::*,
-    mint_type::{MintInstance, MintType},
+    mint_type::MintType,
     stmt::*,
     token::Token,
 };
@@ -117,7 +117,7 @@ impl Interpreter {
             (ComparationOp::StrictNotEqual, Boolean(a), Boolean(b)) => Boolean(a != b),
             (ComparationOp::StrictNotEqual, Str(a), Str(b)) => Boolean(a != b),
             (ComparationOp::StrictNotEqual, Null, Null) => Boolean(false),
-            (ComparationOp::StrictNotEqual, TypeInstance(a), TypeInstance(b)) => Boolean(a != b),
+            (ComparationOp::StrictNotEqual, TypeInstance(a), TypeInstance(b)) => Boolean(a == b),
             (ComparationOp::StrictNotEqual, _, Null) => Boolean(true),
             (ComparationOp::StrictNotEqual, Null, _) => Boolean(true),
 
@@ -199,7 +199,7 @@ impl Interpreter {
             Expr::Literal(value_and_token) => Ok(value_and_token.clone().0),
             Expr::Call(callee, params) => self.eval_call(expr, callee, params),
             Expr::Get(expr, token) => self.eval_get(expr, token),
-            Expr::Instantiate(args) => self.eval_instantiate(args),
+            Expr::Instantiate(type_token, args) => self.eval_instantiate(type_token, args),
         }
     }
 
@@ -216,21 +216,21 @@ impl Interpreter {
         }
     }
 
-    fn eval_instantiate(&mut self, args: &[(Token, Expr)]) -> InterpreterResult {
-        //if let Some(Value::Type(mint_type)) = self.environment.get(&type_token.lexeme()) {
-        let mut values = vec![];
-        for (arg, expr) in args {
-            values.push((arg.clone(), self.eval_expr(expr)?));
+    fn eval_instantiate(&mut self, t: &Token, args: &[(Token, Expr)]) -> InterpreterResult {
+        if let Some(Value::Type(mint_type)) = self.environment.get(&t.lexeme()) {
+            let mut values = vec![];
+            for (arg, expr) in args {
+                values.push((arg.clone(), self.eval_expr(expr)?));
+            }
+            Ok(Value::TypeInstance(mint_type.call(&values)))
+        } else {
+            Err(RuntimeError::NotInstantiable(
+                t.line(),
+                t.starts_at(),
+                t.ends_at(),
+                t.lexeme(),
+            ))
         }
-        Ok(Value::TypeInstance(MintInstance::new(&values)))
-        //} else {
-        //    Err(RuntimeError::NotInstantiable(
-        //        type_token.line(),
-        //        type_token.starts_at(),
-        //        type_token.ends_at(),
-        //        type_token.lexeme(),
-        //    ))
-        //}
     }
 
     fn eval_call(
@@ -374,7 +374,7 @@ impl Interpreter {
             Stmt::TypeStmt(token, args) => {
                 self.environment.define(
                     token.lexeme(),
-                    Value::Type(MintType::new(token.clone(), args)),
+                    Value::Type(MintType::new(token.clone(), args.clone())),
                 );
 
                 Ok(())
