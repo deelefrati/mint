@@ -26,6 +26,7 @@ pub enum SemanticError {
     PropertyDoesNotExist(usize, usize, usize, String, Type),
     TypeNotAssignable(usize, usize, usize, Type, String),
     IdenticalTypes(usize, usize, usize, Type),
+    ConditionOverlap(usize, usize, usize, Type, Type),
 }
 
 impl SemanticError {
@@ -199,6 +200,14 @@ impl SemanticError {
                     Some(*starts_at),
                     Some(*ends_at),
                     format!("The types {} have the same declaration. It is not possible to create a union with two equal types", types),
+                    Some(print_marker(*starts_at, *ends_at,None ))),
+                SemanticError::ConditionOverlap(line, starts_at, ends_at, left, right) => static_error_template(
+                    error_type,
+                    source_vec,
+                    *line,
+                    Some(*starts_at),
+                    Some(*ends_at),
+                    format!("This condition is invalid since the types \"{}\" and \"{}\" have no overlap.", left, right),
                     Some(print_marker(*starts_at, *ends_at,None ))),
         }
     }

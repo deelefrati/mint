@@ -737,7 +737,7 @@ impl<'a> SemanticAnalyzer<'a> {
                                     t.lexeme(),
                                 )),
                                 std::cmp::Ordering::Equal => {
-                                    let (type_, _) = compatible_types.first().unwrap();
+                                    let (type_, t) = compatible_types.first().unwrap();
                                     self.instance_to_user_type(args, &attrs, type_)?;
                                     Ok(Type::UserType(MintType::new(t.clone(), attrs)))
                                 }
@@ -941,6 +941,40 @@ impl<'a> SemanticAnalyzer<'a> {
                 (_, Type::Null) => Type::Bool,
                 (Type::Null, _) => Type::Bool,
                 (Type::UserType(_), Type::UserType(_)) => Type::Bool,
+                (Type::Union(union), right) => {
+                    if union.iter().any(|(t, _)| match right.clone() {
+                        Type::Literals(literal) => t == &literal.to_primitive(),
+                        _ => t == &right,
+                    }) {
+                        Type::Bool
+                    } else {
+                        let (line, starts_at, ends_at) = expr.placement();
+                        return Err(SemanticError::ConditionOverlap(
+                            line,
+                            starts_at,
+                            ends_at,
+                            Type::Union(union),
+                            right,
+                        ));
+                    }
+                }
+                (left, Type::Union(union)) => {
+                    if union.iter().any(|(t, _)| match left.clone() {
+                        Type::Literals(literal) => t == &literal.to_primitive(),
+                        _ => t == &left,
+                    }) {
+                        Type::Bool
+                    } else {
+                        let (line, starts_at, ends_at) = expr.placement();
+                        return Err(SemanticError::ConditionOverlap(
+                            line,
+                            starts_at,
+                            ends_at,
+                            Type::Union(union),
+                            left,
+                        ));
+                    }
+                }
                 _ => {
                     let (line, starts_at, ends_at) = expr.placement();
                     let (l, r) = match (left, right) {
