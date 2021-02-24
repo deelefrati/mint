@@ -35,6 +35,7 @@ impl std::fmt::Display for Type {
             Type::Fun(_, _, _, _) => write!(f, "Function"),
             Type::UserType(mint_type) => write!(f, "{}", mint_type.name.lexeme()),
             Type::Union(union) => write!(f, "{}", print_union(union)),
+            Type::Alias(t, _) => write!(f, "{}", t.lexeme()),
         }
     }
 }
@@ -49,6 +50,7 @@ pub enum Type {
     Fun(SmntEnv, Vec<VarType>, VarType, Vec<String>),
     UserType(MintType),
     Union(Vec<(Type, Token)>),
+    Alias(Token, Box<Type>),
 }
 
 impl std::convert::From<&VarType> for Type {
@@ -316,29 +318,95 @@ impl<'a> SemanticAnalyzer<'a> {
                             }
                         }
                         (Some(VarType::UserType(user_type)), Type::UserType(mint_type)) => {
-                            if user_type.lexeme() != mint_type.name.lexeme() {
-                                self.errors.push(Error::Semantic(
-                                    SemanticError::IncompatibleDeclaration(
-                                        mint_type.name.line(),
-                                        mint_type.name.starts_at(),
-                                        mint_type.name.ends_at(),
-                                        var_type.clone().unwrap(),
-                                        t.clone(),
-                                    ),
-                                ));
+                            if let Some(Type::Alias(_, type_)) = self.get_var(&user_type.lexeme()) {
+                                if self.compare_types(&t, &type_) {
+                                    if let Some((_, true)) = self.define(var_name, *type_) {
+                                        let (line, starts_at, ends_at) = expr.placement();
+                                        self.errors.push(Error::Semantic(
+                                            SemanticError::VariableOverwrited(
+                                                line,
+                                                starts_at,
+                                                ends_at,
+                                                var_name.clone(),
+                                            ),
+                                        ));
+                                    }
+                                } else {
+                                    let (line, starts_at, ends_at) = expr.placement();
+                                    self.errors.push(Error::Semantic(
+                                        SemanticError::IncompatibleDeclaration(
+                                            line,
+                                            starts_at,
+                                            ends_at,
+                                            var_type.clone().unwrap(),
+                                            t.clone(),
+                                        ),
+                                    ));
+                                }
+                            } else {
+                                if user_type.lexeme() != mint_type.name.lexeme() {
+                                    self.errors.push(Error::Semantic(
+                                        SemanticError::IncompatibleDeclaration(
+                                            mint_type.name.line(),
+                                            mint_type.name.starts_at(),
+                                            mint_type.name.ends_at(),
+                                            var_type.clone().unwrap(),
+                                            t.clone(),
+                                        ),
+                                    ));
+                                }
+                                if let Some((_, true)) =
+                                    self.define(var_name, Type::UserType(mint_type))
+                                {
+                                    let (line, starts_at, ends_at) = expr.placement();
+                                    self.errors.push(Error::Semantic(
+                                        SemanticError::VariableOverwrited(
+                                            line,
+                                            starts_at,
+                                            ends_at,
+                                            var_name.clone(),
+                                        ),
+                                    ));
+                                }
                             }
-                            if let Some((_, true)) =
-                                self.define(var_name, Type::UserType(mint_type))
-                            {
+                        }
+                        (Some(VarType::UserType(user_type)), _) => {
+                            if let Some(Type::Alias(_, type_)) = self.get_var(&user_type.lexeme()) {
+                                if self.compare_types(&t, &type_) {
+                                    if let Some((_, true)) = self.define(var_name, *type_) {
+                                        let (line, starts_at, ends_at) = expr.placement();
+                                        self.errors.push(Error::Semantic(
+                                            SemanticError::VariableOverwrited(
+                                                line,
+                                                starts_at,
+                                                ends_at,
+                                                var_name.clone(),
+                                            ),
+                                        ));
+                                    }
+                                } else {
+                                    let (line, starts_at, ends_at) = expr.placement();
+                                    self.errors.push(Error::Semantic(
+                                        SemanticError::IncompatibleDeclaration(
+                                            line,
+                                            starts_at,
+                                            ends_at,
+                                            var_type.clone().unwrap(),
+                                            t.clone(),
+                                        ),
+                                    ))
+                                }
+                            } else {
                                 let (line, starts_at, ends_at) = expr.placement();
                                 self.errors.push(Error::Semantic(
-                                    SemanticError::VariableOverwrited(
+                                    SemanticError::IncompatibleDeclaration(
                                         line,
                                         starts_at,
                                         ends_at,
-                                        var_name.clone(),
+                                        var_type.clone().unwrap(),
+                                        t.clone(),
                                     ),
-                                ));
+                                ))
                             }
                         }
                         (Some(VarType::Literals(_)), Type::Literals(_)) => {
@@ -615,9 +683,14 @@ impl<'a> SemanticAnalyzer<'a> {
                             )))
                     }
                 }
+                Stmt::TypeAlias(token, (var_type, _)) => {
+                    if self.check_type(var_type) {
+                        let type_: Type = var_type.into();
+                        self.define(&token.lexeme(), Type::Alias(token.clone(), type_.into()));
+                    }
+                }
             }
         }
-        //println!("{:#?}", self.symbol_table);
         if self.errors.is_empty() {
             #[allow(clippy::map_clone)]
             let x: Vec<Stmt> = hoisted_stmts.iter_mut().map(|s| s.clone()).collect();
@@ -684,100 +757,90 @@ impl<'a> SemanticAnalyzer<'a> {
     ) -> Result<Type, SemanticError> {
         match var_type {
             VarType::Union(union) => {
-                let user_types: Vec<&(VarType, Token)> = union
+                let types_result: Result<Vec<(Type, Token)>, SemanticError> = union
                     .iter()
                     .filter(|(vt, _)| matches!(vt, VarType::UserType(_)))
-                    .collect();
-                if user_types.is_empty() {
-                    Err(SemanticError::TypeNotAssignable(
-                        t.line(),
-                        t.starts_at(),
-                        t.ends_at(),
-                        var_type.into(),
-                        t.lexeme(),
-                    ))
-                } else {
-                    let types_result: Result<Vec<(Type, Token)>, SemanticError> = user_types
-                        .iter()
-                        .map(|(_, t)| {
-                            if let Some(type_) = self.get_var(&t.lexeme()) {
-                                Ok((type_, t.clone()))
-                            } else {
-                                Err(SemanticError::TypeNotDeclared(
-                                    t.line(),
-                                    t.starts_at(),
-                                    t.ends_at(),
-                                    t.lexeme(),
-                                ))
-                            }
-                        })
-                        .collect();
-                    match types_result {
-                        Ok(types) => {
-                            let mut attrs = HashMap::default();
-                            let compatible_types: Vec<&(Type, Token)> = types
-                                .iter()
-                                .filter(|(type_, _)| match type_ {
-                                    Type::UserType(mint_type) => {
-                                        let res = self.check_attrs(args, &mint_type.attrs);
-                                        if res {
-                                            attrs = mint_type.attrs.clone();
-                                        }
-                                        res
-                                    }
-                                    _ => false,
-                                })
-                                .collect();
-                            match compatible_types.len().cmp(&1) {
-                                std::cmp::Ordering::Less => Err(SemanticError::TypeNotAssignable(
-                                    t.line(),
-                                    t.starts_at(),
-                                    t.ends_at(),
-                                    var_type.into(),
-                                    t.lexeme(),
-                                )),
-                                std::cmp::Ordering::Equal => {
-                                    let (type_, t) = compatible_types.first().unwrap();
-                                    self.instance_to_user_type(args, &attrs, type_)?;
-                                    Ok(Type::UserType(MintType::new(t.clone(), attrs)))
-                                }
-                                std::cmp::Ordering::Greater => Err(SemanticError::IdenticalTypes(
-                                    t.line(),
-                                    t.starts_at(),
-                                    t.ends_at(),
-                                    Type::Union(
-                                        compatible_types
-                                            .iter()
-                                            .map(|(type_, token)| (type_.clone(), token.clone()))
-                                            .collect(),
-                                    ),
-                                )),
-                            }
+                    .map(|(_, t)| {
+                        if let Some(type_) = self.get_var(&t.lexeme()) {
+                            Ok((type_, t.clone()))
+                        } else {
+                            Err(SemanticError::TypeNotDeclared(
+                                t.line(),
+                                t.starts_at(),
+                                t.ends_at(),
+                                t.lexeme(),
+                            ))
                         }
-                        Err(err) => Err(err),
+                    })
+                    .collect();
+                match types_result {
+                    Ok(types) => {
+                        let mut attrs = HashMap::default();
+                        let compatible_types: Vec<&(Type, Token)> = types
+                            .iter()
+                            .filter(|(type_, _)| match type_ {
+                                Type::UserType(mint_type) => {
+                                    let res = self.check_attrs(args, &mint_type.attrs);
+                                    if res {
+                                        attrs = mint_type.attrs.clone();
+                                    }
+                                    res
+                                }
+                                _ => false,
+                            })
+                            .collect();
+                        match compatible_types.len().cmp(&1) {
+                            std::cmp::Ordering::Less => Err(SemanticError::TypeNotAssignable(
+                                t.line(),
+                                t.starts_at(),
+                                t.ends_at(),
+                                var_type.into(),
+                                t.lexeme(),
+                            )),
+                            std::cmp::Ordering::Equal => {
+                                let (type_, t) = compatible_types.first().unwrap();
+                                self.instance_to_user_type(args, &attrs, type_)?;
+                                Ok(Type::UserType(MintType::new(t.clone(), attrs)))
+                            }
+                            std::cmp::Ordering::Greater => Err(SemanticError::IdenticalTypes(
+                                t.line(),
+                                t.starts_at(),
+                                t.ends_at(),
+                                Type::Union(
+                                    compatible_types
+                                        .iter()
+                                        .map(|(type_, token)| (type_.clone(), token.clone()))
+                                        .collect(),
+                                ),
+                            )),
+                        }
                     }
+                    Err(err) => Err(err),
                 }
             }
-            VarType::UserType(t) => {
-                if let Some(type_) = self.get_var(&t.lexeme()) {
+            VarType::UserType(token) => {
+                if let Some(type_) = self.get_var(&token.lexeme()) {
                     match type_.clone() {
                         Type::UserType(mint_type) => {
                             self.instance_to_user_type(args, &mint_type.attrs, &type_)?;
                             Ok(Type::UserType(mint_type))
                         }
+                        Type::Alias(_, type_) => {
+                            self.analyze_instatiation(&token, args, &(*type_).into())
+                        }
                         _ => Err(SemanticError::TypeNotIntantiable(
-                            t.line(),
-                            t.starts_at(),
-                            t.ends_at(),
-                            t.lexeme(),
+                            token.line(),
+                            token.starts_at(),
+                            token.ends_at(),
+                            token.lexeme(),
                         )),
                     }
                 } else {
                     Err(SemanticError::TypeNotDeclared(
-                        t.line(),
-                        t.starts_at(),
-                        t.ends_at(),
-                        t.lexeme(),
+                        token.line(),
+                        token.starts_at(),
+                        token.ends_at(),
+                        token.lexeme(),
                     ))
                 }
             }
@@ -941,40 +1004,6 @@ impl<'a> SemanticAnalyzer<'a> {
                 (_, Type::Null) => Type::Bool,
                 (Type::Null, _) => Type::Bool,
                 (Type::UserType(_), Type::UserType(_)) => Type::Bool,
-                (Type::Union(union), right) => {
-                    if union.iter().any(|(t, _)| match right.clone() {
-                        Type::Literals(literal) => t == &literal.to_primitive(),
-                        _ => t == &right,
-                    }) {
-                        Type::Bool
-                    } else {
-                        let (line, starts_at, ends_at) = expr.placement();
-                        return Err(SemanticError::ConditionOverlap(
-                            line,
-                            starts_at,
-                            ends_at,
-                            Type::Union(union),
-                            right,
-                        ));
-                    }
-                }
-                (left, Type::Union(union)) => {
-                    if union.iter().any(|(t, _)| match left.clone() {
-                        Type::Literals(literal) => t == &literal.to_primitive(),
-                        _ => t == &left,
-                    }) {
-                        Type::Bool
-                    } else {
-                        let (line, starts_at, ends_at) = expr.placement();
-                        return Err(SemanticError::ConditionOverlap(
-                            line,
-                            starts_at,
-                            ends_at,
-                            Type::Union(union),
-                            left,
-                        ));
-                    }
-                }
                 _ => {
                     let (line, starts_at, ends_at) = expr.placement();
                     let (l, r) = match (left, right) {
@@ -1048,6 +1077,7 @@ impl<'a> SemanticAnalyzer<'a> {
             ),
             Value::Type(_) => Type::Null,
             Value::TypeInstance(_) => Type::Null,
+            Value::TypeAlias(_) => Type::Null,
         }
     }
 
@@ -1125,14 +1155,16 @@ impl<'a> SemanticAnalyzer<'a> {
     }
 
     fn compare_types(&self, found: &Type, expected: &Type) -> bool {
-        //println!("{:?} \n {:?}", found, expected);
-        //println!();
+        println!("{:?} \n {:?}", found, expected);
+        println!();
         match (found, expected) {
             (Type::UserType(a), Type::UserType(b)) => a.name.lexeme() == b.name.lexeme(),
             (Type::Literals(a), Type::Literals(b)) => a == b,
             (Type::Literals(Literal::Number(_)), Type::Num) => true,
             (Type::Literals(Literal::String(_)), Type::Str) => true,
             (Type::Literals(Literal::Boolean(_)), Type::Bool) => true,
+            (Type::Alias(_, type_), right) => self.compare_types(type_, right),
+            (left, Type::Alias(_, type_)) => self.compare_types(left, type_),
             (_, Type::Union(union)) => union.iter().any(|(t, _)| self.compare_types(found, t)),
             _ => found == expected,
         }
@@ -1169,7 +1201,8 @@ impl<'a> SemanticAnalyzer<'a> {
                         declared_keys.append(&mut self.expr_keys(expr));
                     }
                 }
-                Stmt::TypeStmt(token, _) => declared_keys.push(token.lexeme()),
+                Stmt::TypeStmt(_, _) => {}
+                Stmt::TypeAlias(_, _) => {}
             }
         }
     }
@@ -1200,7 +1233,7 @@ impl<'a> SemanticAnalyzer<'a> {
             Expr::Variable(token, _) => vec![token.lexeme()],
             Expr::Call(callee, _params) => self.expr_keys(callee),
             Expr::Instantiate(t, _, _) => vec![t.lexeme()],
-            Expr::Get(_, token) => vec![token.lexeme()],
+            Expr::Get(_, _) => vec![],
         }
     }
 
@@ -1251,5 +1284,13 @@ impl<'a> SemanticAnalyzer<'a> {
             }
         }
         Ok(())
+    }
+
+    fn check_type(&mut self, var_type: &VarType) -> bool {
+        match var_type {
+            VarType::Union(union) => union.iter().all(|(type_, _)| self.check_type(type_)),
+            VarType::UserType(t) => self.get_var(&t.lexeme()).is_some(),
+            _ => true,
+        }
     }
 }

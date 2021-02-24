@@ -104,6 +104,7 @@ impl std::fmt::Display for Value {
             Value::TypeInstance(mint_instance) => {
                 write!(f, "Object: {{\n{}}}", print_attrs(mint_instance))
             }
+            Value::TypeAlias(t) => write!(f, "{}", t.lexeme()),
         }
     }
 }
@@ -116,6 +117,7 @@ pub enum Value {
     Fun(Callable),
     Type(MintType),
     TypeInstance(MintInstance),
+    TypeAlias(Token),
 }
 
 impl Default for Value {

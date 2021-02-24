@@ -145,7 +145,7 @@ impl Interpreter {
                 Boolean(a.chars().count() >= b.chars().count())
             }
 
-            _ => panic!("at the disco"),
+            _ => panic!("the disco"),
         };
         Ok(result)
     }
@@ -217,19 +217,24 @@ impl Interpreter {
     }
 
     fn eval_instantiate(&mut self, t: &Token, args: &[(Token, Expr)]) -> InterpreterResult {
-        if let Some(Value::Type(mint_type)) = self.environment.get(&t.lexeme()) {
-            let mut values = vec![];
-            for (arg, expr) in args {
-                values.push((arg.clone(), self.eval_expr(expr)?));
+        match self.environment.get(&t.lexeme()) {
+            Some(Value::Type(mint_type)) => {
+                let mut values = vec![];
+                for (arg, expr) in args {
+                    values.push((arg.clone(), self.eval_expr(expr)?));
+                }
+                Ok(Value::TypeInstance(mint_type.call(&values)))
             }
-            Ok(Value::TypeInstance(mint_type.call(&values)))
-        } else {
-            Err(RuntimeError::NotInstantiable(
+            Some(Value::TypeAlias(id)) => {
+                println!("{:?}", id);
+                self.eval_instantiate(&id, args)
+            }
+            _ => Err(RuntimeError::NotInstantiable(
                 t.line(),
                 t.starts_at(),
                 t.ends_at(),
                 t.lexeme(),
-            ))
+            )),
         }
     }
 
@@ -376,6 +381,12 @@ impl Interpreter {
                     token.lexeme(),
                     Value::Type(MintType::new(token.clone(), args.clone())),
                 );
+
+                Ok(())
+            }
+            Stmt::TypeAlias(id, (_, t)) => {
+                self.environment
+                    .define(id.lexeme(), Value::TypeAlias(t.clone()));
 
                 Ok(())
             }

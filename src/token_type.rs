@@ -196,6 +196,7 @@ impl From<Type> for VarType {
                     .map(|(type_, token)| (type_.to_owned().into(), token.clone()))
                     .collect(),
             ),
+            Type::Alias(t, _) => VarType::UserType(t),
         }
     }
 }
