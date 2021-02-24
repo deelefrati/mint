@@ -225,10 +225,7 @@ impl Interpreter {
                 }
                 Ok(Value::TypeInstance(mint_type.call(&values)))
             }
-            Some(Value::TypeAlias(id)) => {
-                println!("{:?}", id);
-                self.eval_instantiate(&id, args)
-            }
+            Some(Value::TypeAlias(id)) => self.eval_instantiate(&id, args),
             _ => Err(RuntimeError::NotInstantiable(
                 t.line(),
                 t.starts_at(),

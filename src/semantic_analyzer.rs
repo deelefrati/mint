@@ -1169,8 +1169,8 @@ impl<'a> SemanticAnalyzer<'a> {
     }
 
     fn compare_types(&self, found: &Type, expected: &Type) -> bool {
-        println!("{:?} \n {:?}", found, expected);
-        println!();
+        //println!("{:?} \n {:?}", found, expected);
+        //println!();
         match (found, expected) {
             (Type::UserType(a), Type::UserType(b)) => a.name.lexeme() == b.name.lexeme(),
             (Type::Literals(a), Type::Literals(b)) => a == b,
@@ -1252,17 +1252,25 @@ impl<'a> SemanticAnalyzer<'a> {
     }
 
     fn check_attrs(&mut self, args: &[(Token, Expr)], attrs: &HashMap<String, VarType>) -> bool {
-        args.iter().all(|(t, expr)| {
-            if let Ok(expr_type) = self.analyze_one(expr) {
-                if let Some(attr_type) = attrs.get(&t.lexeme()) {
-                    self.compare_types(&expr_type, &attr_type.into())
-                } else {
-                    false
-                }
+        if attrs.len() == args.len() {
+            if args.iter().all(|(t, _)| attrs.contains_key(&t.lexeme())) {
+                args.iter().all(|(t, expr)| {
+                    if let Ok(expr_type) = self.analyze_one(expr) {
+                        if let Some(attr_type) = attrs.get(&t.lexeme()) {
+                            self.compare_types(&expr_type, &attr_type.into())
+                        } else {
+                            false
+                        }
+                    } else {
+                        false
+                    }
+                })
             } else {
                 false
             }
-        })
+        } else {
+            false
+        }
     }
 
     fn instance_to_user_type(
