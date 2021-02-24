@@ -157,20 +157,25 @@ impl<'a> Parser<'a> {
     fn type_declaration(&mut self) -> Result<Stmt, ParserError> {
         let identifier = self.consume(Identifier)?;
         self.consume(Equal)?;
-        self.consume(LeftBrace)?;
-        let mut variables = HashMap::default();
-        while self.next_is(single(RightBrace)).is_none() {
-            let id = self.consume(Identifier)?;
-            self.consume(Colon)?;
-            let (var_type, _) = self.consume_type()?;
-            variables.insert(id.lexeme(), var_type);
-            self.consume(Comma)?;
+        if self.next_is(single(LeftBrace)).is_some() {
+            let mut variables = HashMap::default();
+            while self.next_is(single(RightBrace)).is_none() {
+                let id = self.consume(Identifier)?;
+                self.consume(Colon)?;
+                let (var_type, _) = self.consume_type()?;
+                variables.insert(id.lexeme(), var_type);
+                self.consume(Comma)?;
+            }
+            self.consume(Semicolon)?;
+            if variables.is_empty() {
+                return Err(ParserError::EmptyType);
+            }
+            Ok(Stmt::TypeStmt(identifier, variables))
+        } else {
+            let type_ = self.consume_type()?;
+            self.consume(Semicolon)?;
+            Ok(Stmt::TypeAlias(identifier, type_))
         }
-        self.consume(Semicolon)?;
-        if variables.is_empty() {
-            return Err(ParserError::EmptyType);
-        }
-        Ok(Stmt::TypeStmt(identifier, variables))
     }
 
     fn var_declaration(&mut self) -> Result<Stmt, ParserError> {

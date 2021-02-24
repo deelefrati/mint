@@ -44,5 +44,5 @@ function union(): number | boolean {
     return true;
 }
 
-console.assert(union() === true);
+//console.assert(union() === true);
 
