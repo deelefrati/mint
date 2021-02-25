@@ -209,7 +209,7 @@ impl<'a> SemanticAnalyzer<'a> {
             self.errors.push(Error::Semantic(err));
         }
 
-        for stmt in hoisted_stmts.clone() {
+        for stmt in stmts {
             match stmt {
                 Stmt::ExprStmt(expr) => match self.analyze_one(&expr) {
                     Ok(t) => self.insert(&expr, t),
@@ -642,16 +642,35 @@ impl<'a> SemanticAnalyzer<'a> {
                         if let Some(fun_ret_t) = fun_ret_type.clone() {
                             match self.analyze_one(&expr) {
                                 Ok(t) => {
-                                    if !self.compare_types(&t, &(&fun_ret_t).into()) {
-                                        self.errors.push(Error::Semantic(
-                                            SemanticError::MismatchedTypes(
-                                                token.line(),
-                                                token.starts_at(),
-                                                token.ends_at(),
-                                                (&fun_ret_t).into(),
-                                                t.clone(),
-                                            ),
-                                        ));
+                                    match fun_ret_t.clone() {
+                                        VarType::UserType(id) => match self.get_var(&id.lexeme()) {
+                                            Some(Type::Alias(_, type_)) => {
+                                                //println!("{:?}\n{:?}", t, *type_);
+                                                self.check_mismatch_types(&t, &(*type_), token);
+                                            }
+                                            Some(_) => {
+                                                self.check_mismatch_types(
+                                                    &t,
+                                                    &(&fun_ret_t).into(),
+                                                    token,
+                                                );
+                                            }
+                                            None => self.errors.push(Error::Semantic(
+                                                SemanticError::TypeNotDeclared(
+                                                    id.line(),
+                                                    id.starts_at(),
+                                                    id.ends_at(),
+                                                    id.lexeme(),
+                                                ),
+                                            )),
+                                        },
+                                        _ => {
+                                            self.check_mismatch_types(
+                                                &t,
+                                                &(&fun_ret_t).into(),
+                                                token,
+                                            );
+                                        }
                                     }
                                     self.insert(&expr, t);
                                 }
@@ -1169,8 +1188,8 @@ impl<'a> SemanticAnalyzer<'a> {
     }
 
     fn compare_types(&self, found: &Type, expected: &Type) -> bool {
-        //println!("{:?} \n {:?}", found, expected);
-        //println!();
+        println!("found: {:?} \n expected: {:?}", found, expected);
+        println!();
         match (found, expected) {
             (Type::UserType(a), Type::UserType(b)) => a.name.lexeme() == b.name.lexeme(),
             (Type::Literals(a), Type::Literals(b)) => a == b,
@@ -1179,6 +1198,7 @@ impl<'a> SemanticAnalyzer<'a> {
             (Type::Literals(Literal::Boolean(_)), Type::Bool) => true,
             (Type::Alias(_, type_), right) => self.compare_types(type_, right),
             (left, Type::Alias(_, type_)) => self.compare_types(left, type_),
+            (Type::Union(union), _) => union.iter().any(|(t, _)| self.compare_types(t, expected)),
             (_, Type::Union(union)) => union.iter().any(|(t, _)| self.compare_types(found, t)),
             _ => found == expected,
         }
@@ -1313,6 +1333,18 @@ impl<'a> SemanticAnalyzer<'a> {
             VarType::Union(union) => union.iter().all(|(type_, _)| self.check_type(type_)),
             VarType::UserType(t) => self.get_var(&t.lexeme()).is_some(),
             _ => true,
+        }
+    }
+    fn check_mismatch_types(&mut self, found: &Type, expected: &Type, token: &Token) {
+        if !self.compare_types(&found, &expected) {
+            self.errors
+                .push(Error::Semantic(SemanticError::MismatchedTypes(
+                    token.line(),
+                    token.starts_at(),
+                    token.ends_at(),
+                    expected.clone(),
+                    found.clone(),
+                )));
         }
     }
 }
