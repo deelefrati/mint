@@ -39,4 +39,16 @@ type ninth_alias = RandomType | number;
 const k : ninth_alias = {x: 10,};
 const l : ninth_alias = 10;
 
+function f1_alias() : first_alias {
+    return 10;
+}
 
+
+function f2_alias() : seventh_alias {
+    return 10;
+}
+
+function f3_alias() : ninth_alias {
+    const k : ninth_alias = {x: 10,};
+    return k;
+}
