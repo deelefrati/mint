@@ -200,6 +200,21 @@ impl Interpreter {
             Expr::Call(callee, params) => self.eval_call(expr, callee, params),
             Expr::Get(expr, token) => self.eval_get(expr, token),
             Expr::Instantiate(type_token, args, _) => self.eval_instantiate(type_token, args),
+            Expr::Typeof(expr, (_, t)) => {
+                let expr_evaluated = self.eval_expr(expr)?;
+                let value = match (expr_evaluated, t.lexeme().as_str()) {
+                    (Value::Null, "\"null\"") => Value::Boolean(true),
+                    (Value::Boolean(_), "\"boolean\"") => Value::Boolean(true),
+                    (Value::Number(_), "\"number\"") => Value::Boolean(true),
+                    (Value::Str(_), "\"string\"") => Value::Boolean(true),
+                    (Value::Fun(_), "\"object\"") => Value::Boolean(true),
+                    (Value::Type(_), "\"object\"") => Value::Boolean(true),
+                    (Value::TypeInstance(_), "\"object\"") => Value::Boolean(true),
+                    (Value::TypeAlias(_), "\"object\"") => Value::Boolean(true),
+                    (_, _) => Value::Boolean(false),
+                };
+                Ok(value)
+            }
         }
     }
 
