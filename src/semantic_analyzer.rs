@@ -31,6 +31,7 @@ impl std::fmt::Display for Type {
             Type::Num => write!(f, "Number"),
             Type::Bool => write!(f, "Boolean"),
             Type::Str => write!(f, "String"),
+            Type::Never => write!(f, "Never"),
             Type::Literals(literal) => write!(f, "{}", literal),
             Type::Fun(_, _, _, _) => write!(f, "Function"),
             Type::UserType(mint_type) => write!(f, "{}", mint_type.name.lexeme()),
@@ -46,6 +47,7 @@ pub enum Type {
     Bool,
     Null,
     Str,
+    Never,
     Literals(Literal),
     Fun(SmntEnv, Vec<VarType>, VarType, Vec<String>),
     UserType(MintType),
@@ -76,9 +78,11 @@ impl std::convert::From<&VarType> for Type {
                     .map(|(var_type, token)| (var_type.into(), token.clone()))
                     .collect(),
             ),
+            VarType::Never => Type::Never,
         }
     }
 }
+
 pub struct SemanticAnalyzer<'a> {
     types: HashMap<&'a Expr, Type>,
     symbol_table: SmntEnv,
@@ -92,6 +96,7 @@ impl<'a> Default for SemanticAnalyzer<'a> {
         SemanticAnalyzer::new()
     }
 }
+
 impl<'a> SemanticAnalyzer<'a> {
     pub fn new() -> Self {
         SemanticAnalyzer {
@@ -172,7 +177,12 @@ impl<'a> SemanticAnalyzer<'a> {
     fn hoist_declarations(&mut self, stmts: &'a [Stmt]) -> Vec<&'a Stmt> {
         let mut declarations: Vec<&Stmt> = stmts
             .iter()
-            .filter(|stmt| matches!(stmt, Stmt::Function(_, _, _, _, _) | Stmt::TypeStmt(_, _)))
+            .filter(|stmt| {
+                matches!(
+                    stmt,
+                    Stmt::Function(_, _, _, _, _) | Stmt::TypeStmt(_, _) | Stmt::TypeAlias(_, _)
+                )
+            })
             .collect();
         declarations.iter().for_each(|decl| match decl {
             Stmt::Function(token, params, _, ret_type, _) => self.declare(
@@ -187,6 +197,10 @@ impl<'a> SemanticAnalyzer<'a> {
             Stmt::TypeStmt(token, attrs) => self.declare(
                 &token.lexeme(),
                 Type::UserType(MintType::new(token.clone(), attrs.clone())),
+            ),
+            Stmt::TypeAlias(token, (var_type, _)) => self.declare(
+                &token.lexeme(),
+                Type::Alias(token.clone(), Box::new(var_type.into())),
             ),
             _ => (),
         });
@@ -209,7 +223,7 @@ impl<'a> SemanticAnalyzer<'a> {
             self.errors.push(Error::Semantic(err));
         }
 
-        for stmt in stmts {
+        for stmt in hoisted_stmts.clone() {
             match stmt {
                 Stmt::ExprStmt(expr) => match self.analyze_one(&expr) {
                     Ok(t) => self.insert(&expr, t),
@@ -564,6 +578,15 @@ impl<'a> SemanticAnalyzer<'a> {
                     }
                 }),
                 Stmt::IfStmt(cond, then, else_) => {
+                    //if let Expr::Typeof(expr, (var_type, _)) = cond {
+                    //    match self.analyze_one(expr) {
+                    //        Ok(expr_type) => {
+                    //            let (then_type, else_type) = self.refine(&expr_type, var_type);
+                    //            println!("{:?}{:?}", then_type, else_type);
+                    //        }
+                    //        Err(err) => self.errors.push(Error::Semantic(err)),
+                    //    }
+                    //}
                     match self.analyze_one(&cond) {
                         Ok(t) => self.insert(&cond, t),
                         Err(semantic_error) => self.errors.push(Error::Semantic(semantic_error)),
@@ -645,7 +668,6 @@ impl<'a> SemanticAnalyzer<'a> {
                                     match fun_ret_t.clone() {
                                         VarType::UserType(id) => match self.get_var(&id.lexeme()) {
                                             Some(Type::Alias(_, type_)) => {
-                                                //println!("{:?}\n{:?}", t, *type_);
                                                 self.check_mismatch_types(&t, &(*type_), token);
                                             }
                                             Some(_) => {
@@ -757,7 +779,13 @@ impl<'a> SemanticAnalyzer<'a> {
             Expr::Call(callee, args) => self.analyze_call_expr(callee, args, expr),
             Expr::Instantiate(t, args, var_type) => self.analyze_instatiation(t, args, var_type),
             Expr::Get(expr, token) => self.analyze_get(expr, token),
+            Expr::Typeof(expr, _) => self.analyze_typeof(expr),
         }
+    }
+
+    fn analyze_typeof(&mut self, expr: &Expr) -> Result<Type, SemanticError> {
+        self.analyze_one(expr)?;
+        Ok(Type::Bool)
     }
 
     fn analyze_get(&mut self, expr: &Expr, token: &Token) -> Result<Type, SemanticError> {
@@ -1188,8 +1216,8 @@ impl<'a> SemanticAnalyzer<'a> {
     }
 
     fn compare_types(&self, found: &Type, expected: &Type) -> bool {
-        println!("found: {:?} \n expected: {:?}", found, expected);
-        println!();
+        //println!("found: {:?} \n expected: {:?}", found, expected);
+        //println!();
         match (found, expected) {
             (Type::UserType(a), Type::UserType(b)) => a.name.lexeme() == b.name.lexeme(),
             (Type::Literals(a), Type::Literals(b)) => a == b,
@@ -1198,10 +1226,22 @@ impl<'a> SemanticAnalyzer<'a> {
             (Type::Literals(Literal::Boolean(_)), Type::Bool) => true,
             (Type::Alias(_, type_), right) => self.compare_types(type_, right),
             (left, Type::Alias(_, type_)) => self.compare_types(left, type_),
-            (Type::Union(union), _) => union.iter().any(|(t, _)| self.compare_types(t, expected)),
+            (Type::Union(left), Type::Union(right)) => self.compare_union(left, right),
             (_, Type::Union(union)) => union.iter().any(|(t, _)| self.compare_types(found, t)),
             _ => found == expected,
         }
+    }
+
+    fn compare_union(&self, left: &[(Type, Token)], right: &[(Type, Token)]) -> bool {
+        left.iter().all(|(l_type, _)| match l_type {
+            Type::UserType(a_type) => right.iter().any(|(r_type, _)| match r_type {
+                Type::UserType(b_type) => a_type.name.lexeme() == b_type.name.lexeme(),
+                _ => false,
+            }),
+            _ => right
+                .iter()
+                .any(|(r_type, _)| self.compare_types(l_type, r_type)),
+        })
     }
 
     fn declared_keys(&mut self, stmts: &'a [Stmt], declared_keys: &mut Vec<String>) {
@@ -1268,6 +1308,7 @@ impl<'a> SemanticAnalyzer<'a> {
             Expr::Call(callee, _params) => self.expr_keys(callee),
             Expr::Instantiate(t, _, _) => vec![t.lexeme()],
             Expr::Get(_, _) => vec![],
+            Expr::Typeof(expr, _) => self.expr_keys(expr),
         }
     }
 
@@ -1335,6 +1376,7 @@ impl<'a> SemanticAnalyzer<'a> {
             _ => true,
         }
     }
+
     fn check_mismatch_types(&mut self, found: &Type, expected: &Type, token: &Token) {
         if !self.compare_types(&found, &expected) {
             self.errors
@@ -1347,4 +1389,22 @@ impl<'a> SemanticAnalyzer<'a> {
                 )));
         }
     }
+
+    //fn refine(&self, type_: &Type, var_type: &VarType) -> (Type, Type) {
+    //    let then_type: Type = var_type.into();
+    //    let else_type = match then_type {
+    //        Type::Num | Type::Str | Type::Bool | Type::Literals(_) => Type::Never,
+    //        Type::UserType(mint_type) => {
+    //            if let Some(type_) = self.get_var(&mint_type.name.lexeme()){
+    //                match type_ {
+
+    //                }
+    //            }
+    //        }
+
+    //        _ => Type::Null,
+    //    };
+
+    //    (Type::Null, Type::Null)
+    //}
 }

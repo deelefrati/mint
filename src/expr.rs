@@ -164,6 +164,7 @@ pub enum Expr {
     Call(Box<Expr>, Vec<Expr>),
     Instantiate(Token, Vec<(Token, Expr)>, VarType),
     Get(Box<Expr>, Token),
+    Typeof(Box<Expr>, (VarType, Token)),
 }
 
 impl Hash for &Expr {
@@ -195,6 +196,7 @@ impl Expr {
             Expr::Call(callee, _) => callee.get_token(),
             Expr::Get(_, token) => &token,
             Expr::Instantiate(token, _, _) => &token,
+            Expr::Typeof(expr, _) => expr.get_token(),
         }
     }
 
@@ -228,6 +230,7 @@ impl Expr {
             }
             Expr::Get(expr, _) => expr.get_expr_placement(),
             Expr::Instantiate(token, _, _) => (token.starts_at(), token.ends_at()),
+            Expr::Typeof(expr, _) => expr.get_expr_placement(),
         }
     }
 

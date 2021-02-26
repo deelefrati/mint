@@ -269,6 +269,7 @@ impl<'a> Scanner<'a> {
             "number" => Some(Num),
             "string" => Some(Str),
             "boolean" => Some(Bool),
+            "typeof" => Some(Typeof),
             _ => None,
         }
     }
