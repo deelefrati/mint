@@ -83,6 +83,33 @@ impl std::convert::From<&VarType> for Type {
     }
 }
 
+impl Type {
+    pub fn to_primitive(&self) -> Type {
+        match self {
+            Type::Literals(literal) => literal.to_primitive(),
+            _ => self.clone(),
+        }
+    }
+
+    pub fn get_literal(&self) -> String {
+        match self {
+            Type::Literals(literal) => match literal {
+                Literal::Number(number) => number.to_string(),
+                Literal::String(string) => string.to_string(),
+                Literal::Boolean(boolean) => boolean.to_string(),
+            },
+            Type::Num => "number".to_string(),
+            Type::Str => "string".to_string(),
+            Type::Bool => "boolean".to_string(),
+            Type::Null => "null".to_string(),
+            Type::UserType(_) | Type::Fun(_, _, _, _) | Type::Union(_) | Type::Alias(_, _) => {
+                "object".to_string()
+            }
+            _ => "".to_string(),
+        }
+    }
+}
+
 pub struct SemanticAnalyzer<'a> {
     types: HashMap<&'a Expr, Type>,
     symbol_table: SmntEnv,
@@ -348,7 +375,7 @@ impl<'a> SemanticAnalyzer<'a> {
                         (Some(VarType::UserType(user_type)), Type::UserType(mint_type)) => {
                             if let Some(Type::Alias(_, type_)) = self.get_var(&user_type.lexeme()) {
                                 if self.compare_types(&t, &type_) {
-                                    if let Some((_, true)) = self.define(var_name, *type_) {
+                                    if let Some((_, true)) = self.define(var_name, t) {
                                         let (line, starts_at, ends_at) = expr.placement();
                                         self.errors.push(Error::Semantic(
                                             SemanticError::VariableOverwrited(
@@ -398,10 +425,12 @@ impl<'a> SemanticAnalyzer<'a> {
                                 }
                             }
                         }
-                        (Some(VarType::UserType(user_type)), _) => {
+                        (Some(VarType::UserType(user_type)), right) => {
                             if let Some(Type::Alias(_, type_)) = self.get_var(&user_type.lexeme()) {
                                 if self.compare_types(&t, &type_) {
-                                    if let Some((_, true)) = self.define(var_name, *type_) {
+                                    if let Some((_, true)) =
+                                        self.define(var_name, right.to_primitive())
+                                    {
                                         let (line, starts_at, ends_at) = expr.placement();
                                         self.errors.push(Error::Semantic(
                                             SemanticError::VariableOverwrited(
@@ -578,23 +607,21 @@ impl<'a> SemanticAnalyzer<'a> {
                     }
                 }),
                 Stmt::IfStmt(cond, then, else_) => {
-                    //if let Expr::Typeof(expr, (var_type, _)) = cond {
-                    //    match self.analyze_one(expr) {
-                    //        Ok(expr_type) => {
-                    //            let (then_type, else_type) = self.refine(&expr_type, var_type);
-                    //            println!("{:?}{:?}", then_type, else_type);
-                    //        }
-                    //        Err(err) => self.errors.push(Error::Semantic(err)),
-                    //    }
-                    //}
                     match self.analyze_one(&cond) {
                         Ok(t) => self.insert(&cond, t),
                         Err(semantic_error) => self.errors.push(Error::Semantic(semantic_error)),
                     }
+                    let refined_types = self.try_refine(&cond);
                     self.with_new_env(|analyzer| {
+                        if let Some((then_type, _, t)) = refined_types.clone() {
+                            analyzer.define(&t.lexeme(), then_type);
+                        }
                         analyzer.analyze(then, fun_ret_type.clone()).ok();
                     });
                     self.with_new_env(|analyzer| {
+                        if let Some((_, else_type, t)) = refined_types.clone() {
+                            analyzer.define(&t.lexeme(), else_type);
+                        }
                         analyzer.analyze(else_, fun_ret_type.clone()).ok();
                     });
                 }
@@ -746,6 +773,8 @@ impl<'a> SemanticAnalyzer<'a> {
                 }
             }
         }
+
+        //println!("{:#?}", self.symbol_table);
         if self.errors.is_empty() {
             #[allow(clippy::map_clone)]
             let x: Vec<Stmt> = hoisted_stmts.iter_mut().map(|s| s.clone()).collect();
@@ -779,13 +808,13 @@ impl<'a> SemanticAnalyzer<'a> {
             Expr::Call(callee, args) => self.analyze_call_expr(callee, args, expr),
             Expr::Instantiate(t, args, var_type) => self.analyze_instatiation(t, args, var_type),
             Expr::Get(expr, token) => self.analyze_get(expr, token),
-            Expr::Typeof(expr, _) => self.analyze_typeof(expr),
+            Expr::Typeof(expr) => self.analyze_typeof(expr),
         }
     }
 
     fn analyze_typeof(&mut self, expr: &Expr) -> Result<Type, SemanticError> {
         self.analyze_one(expr)?;
-        Ok(Type::Bool)
+        Ok(Type::Str)
     }
 
     fn analyze_get(&mut self, expr: &Expr, token: &Token) -> Result<Type, SemanticError> {
@@ -1064,7 +1093,6 @@ impl<'a> SemanticAnalyzer<'a> {
 
                 (_, Type::Null) => Type::Bool,
                 (Type::Null, _) => Type::Bool,
-                (Type::UserType(_), Type::UserType(_)) => Type::Bool,
                 _ => {
                     let (line, starts_at, ends_at) = expr.placement();
                     let (l, r) = match (left, right) {
@@ -1308,7 +1336,7 @@ impl<'a> SemanticAnalyzer<'a> {
             Expr::Call(callee, _params) => self.expr_keys(callee),
             Expr::Instantiate(t, _, _) => vec![t.lexeme()],
             Expr::Get(_, _) => vec![],
-            Expr::Typeof(expr, _) => self.expr_keys(expr),
+            Expr::Typeof(expr) => self.expr_keys(expr),
         }
     }
 
@@ -1390,21 +1418,163 @@ impl<'a> SemanticAnalyzer<'a> {
         }
     }
 
-    //fn refine(&self, type_: &Type, var_type: &VarType) -> (Type, Type) {
-    //    let then_type: Type = var_type.into();
-    //    let else_type = match then_type {
-    //        Type::Num | Type::Str | Type::Bool | Type::Literals(_) => Type::Never,
-    //        Type::UserType(mint_type) => {
-    //            if let Some(type_) = self.get_var(&mint_type.name.lexeme()){
-    //                match type_ {
+    fn refine_else(&mut self, found: &Type, expected: &Type) -> Type {
+        let else_type = match expected {
+            Type::Literals(Literal::String(type_literal)) => match type_literal.as_str() {
+                "string" => self.ref_primitive(found, Type::Str),
+                "number" => self.ref_primitive(found, Type::Num),
+                "null" => self.ref_primitive(found, Type::Null),
+                "boolean" => self.ref_primitive(found, Type::Bool),
+                "object" => match found {
+                    Type::UserType(mint_type) => match self.get_var(&mint_type.name.lexeme()) {
+                        Some(Type::Alias(_, alias_type)) => self.refine_else(&alias_type, expected),
+                        _ => Type::Never,
+                    },
+                    Type::Union(union) => self.ref_else_union(union.clone(), expected),
+                    _ => found.clone(),
+                },
+                _ => found.clone(),
+            },
+            _ => found.clone(),
+        };
+        else_type
+    }
 
-    //                }
-    //            }
-    //        }
+    fn refine_then(&mut self, found: &Type, expected: &Type) -> Type {
+        let then_type = match expected {
+            Type::Literals(Literal::String(type_literal)) => match type_literal.as_str() {
+                "string" => Type::Str,
+                "number" => Type::Num,
+                "null" => Type::Null,
+                "boolean" => Type::Bool,
+                "object" => match found {
+                    Type::UserType(mint_type) => match self.get_var(&mint_type.name.lexeme()) {
+                        Some(Type::Alias(_, alias_type)) => self.refine_then(&alias_type, expected),
+                        _ => found.clone(),
+                    },
+                    Type::Union(union) => self.ref_then_union(union.clone(), expected),
+                    _ => Type::Never,
+                },
+                _ => found.clone(),
+            },
+            _ => found.clone(),
+        };
+        then_type
+    }
 
-    //        _ => Type::Null,
-    //    };
+    fn check_refine(&mut self, left: &Expr, right: &Expr) -> Option<(Type, Type, Token)> {
+        match (&left, &right) {
+            (Expr::Typeof(expr), Expr::Literal(_)) => {
+                if let Ok(expr_type) = self.analyze_one(expr) {
+                    if let Ok(expected_type) = self.analyze_one(right) {
+                        let id = match *expr.clone() {
+                            Expr::Variable(t, _) => t,
+                            Expr::Get(_, t) => t,
+                            _ => panic!("refine error"),
+                        };
+                        Some((
+                            self.refine_then(&expr_type, &expected_type),
+                            self.refine_else(&expr_type, &expected_type),
+                            id,
+                        ))
+                    } else {
+                        None
+                    }
+                } else {
+                    None
+                }
+            }
+            (Expr::Literal(_), Expr::Typeof(expr)) => {
+                if let Ok(expr_type) = self.analyze_one(expr) {
+                    let id = match *expr.clone() {
+                        Expr::Variable(t, _) => t,
+                        Expr::Get(_, t) => t,
+                        _ => panic!("refine error"),
+                    };
+                    if let Ok(expected_type) = self.analyze_one(left) {
+                        Some((
+                            self.refine_then(&expr_type, &expected_type),
+                            self.refine_else(&expr_type, &expected_type),
+                            id,
+                        ))
+                    } else {
+                        None
+                    }
+                } else {
+                    None
+                }
+            }
+            _ => None,
+        }
+    }
 
-    //    (Type::Null, Type::Null)
-    //}
+    fn ref_then_union(&mut self, union: Vec<(Type, Token)>, expected: &Type) -> Type {
+        let refined_union: Vec<(Type, Token)> = union
+            .iter()
+            .filter(|(type_, _)| type_.get_literal() == expected.get_literal())
+            .cloned()
+            .collect();
+        match refined_union.len().cmp(&1) {
+            std::cmp::Ordering::Less => Type::Never,
+            std::cmp::Ordering::Equal => {
+                if let Some(ty) = self.get_var(&refined_union.first().unwrap().1.lexeme()) {
+                    ty
+                } else {
+                    Type::Never
+                }
+            }
+            std::cmp::Ordering::Greater => Type::Union(refined_union),
+        }
+    }
+    fn ref_else_union(&mut self, union: Vec<(Type, Token)>, expected: &Type) -> Type {
+        let refined_union: Vec<(Type, Token)> = union
+            .iter()
+            .filter(|(type_, _)| type_.get_literal() != expected.get_literal())
+            .cloned()
+            .collect();
+        match refined_union.len().cmp(&1) {
+            std::cmp::Ordering::Less => Type::Never,
+            std::cmp::Ordering::Equal => {
+                if let Some(ty) = self.get_var(&refined_union.first().unwrap().1.lexeme()) {
+                    ty
+                } else {
+                    Type::Never
+                }
+            }
+            std::cmp::Ordering::Greater => Type::Union(refined_union),
+        }
+    }
+
+    fn ref_primitive(&mut self, found: &Type, expected: Type) -> Type {
+        if *found == expected {
+            Type::Never
+        } else {
+            match found {
+                Type::UserType(mint_type) => match self.get_var(&mint_type.name.lexeme()) {
+                    Some(Type::Alias(_, alias_type)) => self.ref_primitive(&alias_type, expected),
+                    _ => found.clone(),
+                },
+                Type::Union(union) => self.ref_then_union(union.clone(), &expected),
+                _ => found.clone(),
+            }
+        }
+    }
+
+    fn try_refine(&mut self, cond_expr: &Expr) -> Option<(Type, Type, Token)> {
+        if let Expr::Comparation(left, (op, _), right) = cond_expr {
+            if matches!(op, ComparationOp::StrictEqual) {
+                self.check_refine(left, right)
+            } else if matches!(op, ComparationOp::StrictNotEqual) {
+                if let Some((then, else_, t)) = self.check_refine(left, right) {
+                    Some((else_, then, t))
+                } else {
+                    None
+                }
+            } else {
+                None
+            }
+        } else {
+            None
+        }
+    }
 }

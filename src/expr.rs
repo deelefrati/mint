@@ -2,14 +2,16 @@
 use crate::environment::Environment;
 use crate::error::runtime::RuntimeError;
 use crate::interpreter::Interpreter;
-use crate::mint_type::{MintInstance, MintType};
+use crate::mint_type::MintType;
 use crate::stmt::Stmt;
 use crate::token::Token;
 use crate::token_type::VarType;
 use std::{
+    collections::HashMap,
     hash::{Hash, Hasher},
     ptr::hash,
 };
+
 pub type OpWithToken<Op> = (Op, Token);
 
 impl std::fmt::Display for UnaryOp {
@@ -84,9 +86,9 @@ pub enum LogicalOp {
     Or,
 }
 
-fn print_attrs(user_instance: &MintInstance) -> String {
+fn print_attrs(user_instance: &HashMap<String, Value>) -> String {
     let mut result = "".to_string();
-    for (key, value) in &user_instance.fields {
+    for (key, value) in user_instance {
         result.push_str(&format!("  \"{}\": {} \n", key, value));
     }
     result
@@ -101,8 +103,8 @@ impl std::fmt::Display for Value {
             Value::Str(string) => write!(f, "{}", string),
             Value::Fun(callee) => write!(f, "{}", callee),
             Value::Type(mint_type) => write!(f, "{}", mint_type.name.lexeme()),
-            Value::TypeInstance(mint_instance) => {
-                write!(f, "Object: {{\n{}}}", print_attrs(mint_instance))
+            Value::TypeInstance(type_instance) => {
+                write!(f, "Object: {{\n{}}}", print_attrs(type_instance))
             }
             Value::TypeAlias(t) => write!(f, "{}", t.lexeme()),
         }
@@ -116,7 +118,7 @@ pub enum Value {
     Str(String),
     Fun(Callable),
     Type(MintType),
-    TypeInstance(MintInstance),
+    TypeInstance(HashMap<String, Value>),
     TypeAlias(Token),
 }
 
@@ -164,7 +166,7 @@ pub enum Expr {
     Call(Box<Expr>, Vec<Expr>),
     Instantiate(Token, Vec<(Token, Expr)>, VarType),
     Get(Box<Expr>, Token),
-    Typeof(Box<Expr>, (VarType, Token)),
+    Typeof(Box<Expr>),
 }
 
 impl Hash for &Expr {
@@ -196,7 +198,7 @@ impl Expr {
             Expr::Call(callee, _) => callee.get_token(),
             Expr::Get(_, token) => &token,
             Expr::Instantiate(token, _, _) => &token,
-            Expr::Typeof(expr, _) => expr.get_token(),
+            Expr::Typeof(expr) => expr.get_token(),
         }
     }
 
@@ -230,7 +232,7 @@ impl Expr {
             }
             Expr::Get(expr, _) => expr.get_expr_placement(),
             Expr::Instantiate(token, _, _) => (token.starts_at(), token.ends_at()),
-            Expr::Typeof(expr, _) => expr.get_expr_placement(),
+            Expr::Typeof(expr) => expr.get_expr_placement(),
         }
     }
 
