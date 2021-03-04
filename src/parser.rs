@@ -425,9 +425,9 @@ impl<'a> Parser<'a> {
             Ok(Expr::Variable(token.clone(), token.lexeme()))
         } else if self.next_is(single(Typeof)).is_some() {
             let left = self.call()?;
-            self.consume(EqualEqualEqual)?;
-            let literal = self.consume_literal_string()?;
-            Ok(Expr::Typeof(left.into(), literal))
+            //self.consume(EqualEqualEqual)?;
+            //let literal = self.consume_literal_string()?;
+            Ok(Expr::Typeof(left.into()))
         } else {
             Err(ParserError::MissingExpression(self.current_line))
         }
@@ -453,30 +453,30 @@ impl<'a> Parser<'a> {
         Err(ParserError::Missing(self.current_line, tt))
     }
 
-    fn consume_literal_string(&mut self) -> Result<(VarType, Token), ParserError> {
-        if let Some((var_type, t)) = self.next_is(|tt| match tt {
-            TokenType::String(string) => match string.as_str() {
-                "string" => Some(VarType::String),
-                "number" => Some(VarType::Number),
-                "boolean" => Some(VarType::Boolean),
-                "null" => Some(VarType::Null),
-                "object" => Some(VarType::UserType(Token::default())),
-                _ => None,
-            },
-            _ => None,
-        }) {
-            if matches!(var_type, VarType::UserType(_)) {
-                Ok((VarType::UserType(t.clone()), t))
-            } else {
-                Ok((var_type, t))
-            }
-        } else {
-            Err(ParserError::Missing(
-                self.current_line,
-                String("construir outro erro".to_string()),
-            )) // TODO construir outro erro
-        }
-    }
+    //fn consume_literal_string(&mut self) -> Result<(VarType, Token), ParserError> {
+    //    if let Some((var_type, t)) = self.next_is(|tt| match tt {
+    //        TokenType::String(string) => match string.as_str() {
+    //            "string" => Some(VarType::String),
+    //            "number" => Some(VarType::Number),
+    //            "boolean" => Some(VarType::Boolean),
+    //            "null" => Some(VarType::Null),
+    //            "object" => Some(VarType::UserType(Token::default())),
+    //            _ => None,
+    //        },
+    //        _ => None,
+    //    }) {
+    //        if matches!(var_type, VarType::UserType(_)) {
+    //            Ok((VarType::UserType(t.clone()), t))
+    //        } else {
+    //            Ok((var_type, t))
+    //        }
+    //    } else {
+    //        Err(ParserError::Missing(
+    //            self.current_line,
+    //            String("construir outro erro".to_string()),
+    //        )) // TODO construir outro erro
+    //    }
+    //}
 
     fn consume_type(&mut self) -> Result<(VarType, Token), ParserError> {
         if let Some((var_type, token)) = self.next_is_type() {

@@ -82,10 +82,10 @@ const aat1 : AnotherAnotherType = {
     y: 10,
 };
 
-console.assert(t1 === t2);
-console.assert(!(t1 === t3));
-console.assert(t1 !== t3);
-console.assert(!(t1 !== t2));
-console.assert(!(t1 === at1));
-console.assert(t1 !== aat1);
+//console.assert(t1 === t2);
+//console.assert(!(t1 === t3));
+//console.assert(t1 !== t3);
+//console.assert(!(t1 !== t2));
+//console.assert(!(t1 === at1));
+//console.assert(t1 !== aat1);
 

@@ -199,19 +199,18 @@ impl Interpreter {
             Expr::Literal(value_and_token) => Ok(value_and_token.clone().0),
             Expr::Call(callee, params) => self.eval_call(expr, callee, params),
             Expr::Get(expr, token) => self.eval_get(expr, token),
-            Expr::Instantiate(type_token, args, _) => self.eval_instantiate(type_token, args),
-            Expr::Typeof(expr, (_, t)) => {
+            Expr::Instantiate(_, args, _) => self.eval_instantiate(args),
+            Expr::Typeof(expr) => {
                 let expr_evaluated = self.eval_expr(expr)?;
-                let value = match (expr_evaluated, t.lexeme().as_str()) {
-                    (Value::Null, "\"null\"") => Value::Boolean(true),
-                    (Value::Boolean(_), "\"boolean\"") => Value::Boolean(true),
-                    (Value::Number(_), "\"number\"") => Value::Boolean(true),
-                    (Value::Str(_), "\"string\"") => Value::Boolean(true),
-                    (Value::Fun(_), "\"object\"") => Value::Boolean(true),
-                    (Value::Type(_), "\"object\"") => Value::Boolean(true),
-                    (Value::TypeInstance(_), "\"object\"") => Value::Boolean(true),
-                    (Value::TypeAlias(_), "\"object\"") => Value::Boolean(true),
-                    (_, _) => Value::Boolean(false),
+                let value = match expr_evaluated {
+                    Value::Null => Value::Str("null".to_string()),
+                    Value::Boolean(_) => Value::Str("boolean".to_string()),
+                    Value::Number(_) => Value::Str("number".to_string()),
+                    Value::Str(_) => Value::Str("string".to_string()),
+                    Value::Fun(_) => Value::Str("object".to_string()),
+                    Value::Type(_) => Value::Str("object".to_string()),
+                    Value::TypeInstance(_) => Value::Str("object".to_string()),
+                    Value::TypeAlias(_) => Value::Str("object".to_string()),
                 };
                 Ok(value)
             }
@@ -221,7 +220,9 @@ impl Interpreter {
     fn eval_get(&mut self, expr: &Expr, token: &Token) -> InterpreterResult {
         let object = self.eval_expr(expr)?;
         match object {
-            Value::TypeInstance(mint_instance) => Ok(mint_instance.get(&token).unwrap().clone()),
+            Value::TypeInstance(type_instance) => {
+                Ok(type_instance.get(&token.lexeme()).unwrap().clone())
+            }
             _ => Err(RuntimeError::PropertyDoesNotExist(
                 token.line(),
                 token.starts_at(),
@@ -231,23 +232,12 @@ impl Interpreter {
         }
     }
 
-    fn eval_instantiate(&mut self, t: &Token, args: &[(Token, Expr)]) -> InterpreterResult {
-        match self.environment.get(&t.lexeme()) {
-            Some(Value::Type(mint_type)) => {
-                let mut values = vec![];
-                for (arg, expr) in args {
-                    values.push((arg.clone(), self.eval_expr(expr)?));
-                }
-                Ok(Value::TypeInstance(mint_type.call(&values)))
-            }
-            Some(Value::TypeAlias(id)) => self.eval_instantiate(&id, args),
-            _ => Err(RuntimeError::NotInstantiable(
-                t.line(),
-                t.starts_at(),
-                t.ends_at(),
-                t.lexeme(),
-            )),
+    fn eval_instantiate(&mut self, args: &[(Token, Expr)]) -> InterpreterResult {
+        let mut fields: HashMap<String, Value> = HashMap::default();
+        for (arg, expr) in args {
+            fields.insert(arg.lexeme(), self.eval_expr(expr)?);
         }
+        Ok(Value::TypeInstance(fields))
     }
 
     fn eval_call(
@@ -396,10 +386,9 @@ impl Interpreter {
 
                 Ok(())
             }
-            Stmt::TypeAlias(id, (_, t)) => {
+            Stmt::TypeAlias(id, _) => {
                 self.environment
-                    .define(id.lexeme(), Value::TypeAlias(t.clone()));
-
+                    .define(id.lexeme(), Value::TypeAlias(id.clone()));
                 Ok(())
             }
         }
