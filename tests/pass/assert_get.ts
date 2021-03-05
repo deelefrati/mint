@@ -34,6 +34,7 @@ function h_get(x: AnotherTy | Ty) : number  {
     return x.y;
 }
 
-//console.assert(f_get(x_type)=== 2);
+console.assert(f_get(x_type)=== 2); 
 console.assert(g_get(y_type)=== "point");
 console.assert(h_get(x_type)=== 2);
+

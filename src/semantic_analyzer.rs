@@ -1275,9 +1275,11 @@ impl<'a> SemanticAnalyzer<'a> {
             } else if self.analyzing_function.is_empty() {
                 let old_env = std::mem::replace(&mut self.symbol_table, env);
                 for (arg, param_var_type) in args.iter().zip(&params_types) {
-                    let arg_type = self.analyze_one(arg)?;
+                    let mut arg_type = self.analyze_one(arg)?;
+                    arg_type = self.user_type_or_alias(&arg_type);
 
-                    let param_type: Type = param_var_type.into();
+                    let mut param_type: Type = param_var_type.into();
+                    param_type = self.user_type_or_alias(&param_type);
 
                     if !self.compare_types(&arg_type, &param_type) {
                         let (line, (starts_at, ends_at)) =
@@ -1659,6 +1661,17 @@ impl<'a> SemanticAnalyzer<'a> {
             }
         } else {
             None
+        }
+    }
+
+    fn user_type_or_alias(&mut self, ty: &Type) -> Type {
+        match ty {
+            Type::UserType(user_type) => match self.get_var(&user_type.name.lexeme()) {
+                Some(Type::UserType(user_type)) => Type::UserType(user_type),
+                Some(Type::Alias(t, ty)) => Type::Alias(t, ty),
+                _ => ty.clone(),
+            },
+            _ => ty.clone(),
         }
     }
 }
