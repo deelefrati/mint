@@ -819,24 +819,108 @@ impl<'a> SemanticAnalyzer<'a> {
 
     fn analyze_get(&mut self, expr: &Expr, token: &Token) -> Result<Type, SemanticError> {
         let expr_type = self.analyze_one(expr)?;
-        if let Type::UserType(user_type) = expr_type.clone() {
-            if let Some(Type::UserType(complete_type)) = self.get_var(&user_type.name.lexeme()) {
-                if let Some((_, var_type)) = complete_type
-                    .attrs
-                    .iter()
-                    .find(|(t, _)| t.to_string() == token.lexeme())
-                {
-                    return Ok(var_type.into());
+        match &expr_type {
+            Type::UserType(user_type) => match self.get_var(&user_type.name.lexeme()) {
+                Some(Type::UserType(user_type)) => {
+                    self.analyze_get_user_type(&user_type, token, expr_type.clone())
                 }
+                Some(Type::Alias(_, ty)) => match *ty {
+                    Type::UserType(user_type) => {
+                        self.analyze_get_union(&user_type.name, token, expr_type.clone())
+                    }
+
+                    Type::Union(union) => {
+                        let mut ret_var_type: Type = Type::Never;
+                        for (ty, t) in union.clone() {
+                            ret_var_type =
+                                self.analyze_get_union(&t, &token, ty.clone())
+                                    .map_err(|_| {
+                                        SemanticError::PropertyDoesNotExistOnUnion(
+                                            token.line(),
+                                            token.starts_at(),
+                                            token.ends_at(),
+                                            token.lexeme(),
+                                            ty,
+                                            Type::Union(union.clone()),
+                                        )
+                                    })?;
+                        }
+                        Ok(ret_var_type)
+                    }
+                    _ => Err(SemanticError::PropertyDoesNotExist(
+                        token.line(),
+                        token.starts_at(),
+                        token.ends_at(),
+                        token.lexeme(),
+                        expr_type,
+                    )),
+                },
+                _ => Err(SemanticError::PropertyDoesNotExist(
+                    token.line(),
+                    token.starts_at(),
+                    token.ends_at(),
+                    token.lexeme(),
+                    expr_type,
+                )),
+            },
+            Type::Union(union) => {
+                let mut ret_var_type: Type = Type::Never;
+                for (_, t) in union {
+                    ret_var_type = self.analyze_get_union(&t, &token, expr_type.clone())?;
+                }
+                Ok(ret_var_type)
             }
+            _ => Err(SemanticError::PropertyDoesNotExist(
+                token.line(),
+                token.starts_at(),
+                token.ends_at(),
+                token.lexeme(),
+                expr_type,
+            )),
         }
-        Err(SemanticError::PropertyDoesNotExist(
-            token.line(),
-            token.starts_at(),
-            token.ends_at(),
-            token.lexeme(),
-            expr_type,
-        ))
+    }
+
+    fn analyze_get_union(
+        &mut self,
+        name: &Token,
+        token: &Token,
+        ty: Type,
+    ) -> Result<Type, SemanticError> {
+        match self.get_var(&name.lexeme()) {
+            Some(Type::UserType(complete_type)) => {
+                self.analyze_get_user_type(&complete_type, token, ty)
+            }
+            _ => Err(SemanticError::PropertyDoesNotExist(
+                token.line(),
+                token.starts_at(),
+                token.ends_at(),
+                token.lexeme(),
+                ty,
+            )),
+        }
+    }
+
+    fn analyze_get_user_type(
+        &mut self,
+        user_type: &MintType,
+        token: &Token,
+        ty: Type,
+    ) -> Result<Type, SemanticError> {
+        if let Some((_, var_type)) = user_type
+            .attrs
+            .iter()
+            .find(|(t, _)| t.to_string() == token.lexeme())
+        {
+            Ok(var_type.into())
+        } else {
+            Err(SemanticError::PropertyDoesNotExist(
+                token.line(),
+                token.starts_at(),
+                token.ends_at(),
+                token.lexeme(),
+                ty,
+            ))
+        }
     }
 
     fn analyze_instatiation(
