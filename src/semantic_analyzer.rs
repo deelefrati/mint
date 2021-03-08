@@ -201,8 +201,8 @@ impl<'a> SemanticAnalyzer<'a> {
         Ok(())
     }
 
-    fn hoist_declarations(&mut self, stmts: &'a [Stmt]) -> Vec<&'a Stmt> {
-        let mut declarations: Vec<&Stmt> = stmts
+    fn hoist_declarations(&mut self, stmts: &'a [Stmt]) {
+        let declarations: Vec<&Stmt> = stmts
             .iter()
             .filter(|stmt| {
                 matches!(
@@ -231,12 +231,6 @@ impl<'a> SemanticAnalyzer<'a> {
             ),
             _ => (),
         });
-        let mut not_declarations: Vec<&Stmt> = stmts
-            .iter()
-            .filter(|stmt| !matches!(stmt, Stmt::Function(_, _, _, _, _) | Stmt::TypeStmt(_, _)))
-            .collect();
-        declarations.append(&mut not_declarations);
-        declarations
     }
 
     pub fn analyze(
@@ -244,13 +238,10 @@ impl<'a> SemanticAnalyzer<'a> {
         stmts: &'a [Stmt],
         fun_ret_type: Option<VarType>,
     ) -> Result<Vec<Stmt>, Vec<Error>> {
-        let mut hoisted_stmts = self.hoist_declarations(stmts);
+        self.hoist_declarations(stmts);
+        self.declare_env_vars(stmts).ok();
 
-        if let Err(err) = self.declare_env_vars(stmts) {
-            self.errors.push(Error::Semantic(err));
-        }
-
-        for stmt in hoisted_stmts.clone() {
+        for stmt in stmts {
             match stmt {
                 Stmt::ExprStmt(expr) => match self.analyze_one(&expr) {
                     Ok(t) => self.insert(&expr, t),
@@ -612,7 +603,6 @@ impl<'a> SemanticAnalyzer<'a> {
                         Err(semantic_error) => self.errors.push(Error::Semantic(semantic_error)),
                     }
                     let refined_types = self.try_refine(&cond);
-                    println!("try refine -> {:#?}", refined_types);
                     self.with_new_env(|analyzer| {
                         if let Some((then_type, _, t)) = refined_types.clone() {
                             analyzer.define(&t.lexeme(), then_type);
@@ -631,7 +621,7 @@ impl<'a> SemanticAnalyzer<'a> {
                         .iter()
                         .map(|(_, param_type)| param_type.clone())
                         .collect::<Vec<VarType>>();
-                    self.declare(
+                    if let Some((_, true)) = self.define(
                         &token.lexeme(),
                         Type::Fun(
                             SmntEnv::new(HashMap::default()),
@@ -639,7 +629,15 @@ impl<'a> SemanticAnalyzer<'a> {
                             return_type.clone(),
                             vec![],
                         ),
-                    );
+                    ) {
+                        self.errors
+                            .push(Error::Semantic(SemanticError::VariableOverwrited(
+                                token.line(),
+                                token.starts_at(),
+                                token.ends_at(),
+                                token.lexeme(),
+                            ))); // FIXME trocar o erro
+                    }
 
                     let (fun_env, declared_keys) = self.with_new_env(|analyzer| {
                         analyzer.analyzing_function.push(true);
@@ -660,7 +658,7 @@ impl<'a> SemanticAnalyzer<'a> {
                         analyzer.declared_keys(body, &mut declared_keys);
                         (analyzer.symbol_table.clone(), declared_keys)
                     });
-                    if let Some((_, true)) = self.define(
+                    self.define(
                         &token.lexeme(),
                         Type::Fun(
                             fun_env.clone(),
@@ -668,15 +666,8 @@ impl<'a> SemanticAnalyzer<'a> {
                             return_type.clone(),
                             declared_keys.clone(),
                         ),
-                    ) {
-                        self.errors
-                            .push(Error::Semantic(SemanticError::VariableOverwrited(
-                                token.line(),
-                                token.starts_at(),
-                                token.ends_at(),
-                                token.lexeme(),
-                            ))); // FIXME trocar o erro
-                    }
+                    );
+
                     self.analyzing_function.pop();
 
                     if return_type != &VarType::Null && !self.validate_return(body) {
@@ -777,9 +768,7 @@ impl<'a> SemanticAnalyzer<'a> {
 
         //println!("{:#?}", self.symbol_table);
         if self.errors.is_empty() {
-            #[allow(clippy::map_clone)]
-            let x: Vec<Stmt> = hoisted_stmts.iter_mut().map(|s| s.clone()).collect();
-            Ok(x)
+            Ok(stmts.to_owned())
         } else {
             Err(self.errors.clone())
         }
@@ -1165,7 +1154,6 @@ impl<'a> SemanticAnalyzer<'a> {
             left: Type,
             right: Type,
         ) -> Result<Type, SemanticError> {
-            println!("right {:?}", right);
             let t = match (left.clone(), right.clone()) {
                 (Type::Num, Type::Num) => Type::Bool,
                 (Type::Literals(Literal::Number(_)), Type::Literals(Literal::Number(_))) => {
@@ -1338,17 +1326,15 @@ impl<'a> SemanticAnalyzer<'a> {
     }
 
     fn get_var(&mut self, id: &str) -> Option<Type> {
-        let x = self.symbol_table.get(id);
-
-        if let Some((var_type, defined)) = x {
-            if self.analyzing_function.is_empty() && !self.hoisting {
-                if defined {
-                    Some(var_type)
+        if let Some((type_, defined)) = self.symbol_table.get(id) {
+            if !self.hoisting {
+                if defined || matches!(type_, Type::Fun(_, _, _, _)) {
+                    Some(type_)
                 } else {
                     None
                 }
             } else {
-                Some(var_type)
+                Some(type_)
             }
         } else {
             None
