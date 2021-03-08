@@ -612,6 +612,7 @@ impl<'a> SemanticAnalyzer<'a> {
                         Err(semantic_error) => self.errors.push(Error::Semantic(semantic_error)),
                     }
                     let refined_types = self.try_refine(&cond);
+                    println!("try refine -> {:#?}", refined_types);
                     self.with_new_env(|analyzer| {
                         if let Some((then_type, _, t)) = refined_types.clone() {
                             analyzer.define(&t.lexeme(), then_type);
@@ -830,22 +831,33 @@ impl<'a> SemanticAnalyzer<'a> {
                     }
 
                     Type::Union(union) => {
-                        let mut ret_var_type: Type = Type::Never;
+                        let mut ret_var_type: Vec<(Type, Token)> = vec![];
                         for (ty, t) in union.clone() {
-                            ret_var_type =
-                                self.analyze_get_union(&t, &token, ty.clone())
-                                    .map_err(|_| {
-                                        SemanticError::PropertyDoesNotExistOnUnion(
-                                            token.line(),
-                                            token.starts_at(),
-                                            token.ends_at(),
-                                            token.lexeme(),
-                                            ty,
-                                            Type::Union(union.clone()),
-                                        )
-                                    })?;
+                            let type_buffer = self
+                                .analyze_get_union(&t, &token, ty.clone())
+                                .map_err(|_| {
+                                    SemanticError::PropertyDoesNotExistOnUnion(
+                                        token.line(),
+                                        token.starts_at(),
+                                        token.ends_at(),
+                                        token.lexeme(),
+                                        ty.clone(),
+                                        Type::Union(union.clone()),
+                                    )
+                                })?;
+                            if !ret_var_type
+                                .iter()
+                                .any(|(ty, _)| self.compare_types(ty, &type_buffer))
+                            {
+                                ret_var_type.push((type_buffer, t))
+                            }
                         }
-                        Ok(ret_var_type)
+                        if ret_var_type.len() > 1 {
+                            Ok(Type::Union(ret_var_type))
+                        } else {
+                            let (ty, _) = ret_var_type.first().unwrap();
+                            Ok(ty.clone())
+                        }
                     }
                     _ => Err(SemanticError::PropertyDoesNotExist(
                         token.line(),
@@ -1153,6 +1165,7 @@ impl<'a> SemanticAnalyzer<'a> {
             left: Type,
             right: Type,
         ) -> Result<Type, SemanticError> {
+            println!("right {:?}", right);
             let t = match (left.clone(), right.clone()) {
                 (Type::Num, Type::Num) => Type::Bool,
                 (Type::Literals(Literal::Number(_)), Type::Literals(Literal::Number(_))) => {
@@ -1174,6 +1187,19 @@ impl<'a> SemanticAnalyzer<'a> {
                 }
                 (Type::Literals(Literal::Boolean(_)), Type::Bool) => Type::Bool,
                 (Type::Bool, Type::Literals(Literal::Boolean(_))) => Type::Bool,
+                (Type::Union(union), Type::Literals(literal)) => {
+                    if union.iter().any(|(ty, _)| match ty {
+                        Type::Literals(union_literal) => union_literal == &literal,
+                        _ => false,
+                    }) {
+                        Type::Bool
+                    } else {
+                        let (line, starts_at, ends_at) = expr.placement();
+                        return Err(SemanticError::IncompatibleComparation(
+                            line, starts_at, ends_at, *op, left, right,
+                        ));
+                    }
+                }
 
                 (_, Type::Null) => Type::Bool,
                 (Type::Null, _) => Type::Bool,
@@ -1550,7 +1576,7 @@ impl<'a> SemanticAnalyzer<'a> {
 
     fn check_refine(&mut self, left: &Expr, right: &Expr) -> Option<(Type, Type, Token)> {
         match (&left, &right) {
-            (Expr::Typeof(expr), Expr::Literal(_)) => {
+            (Expr::Typeof(expr), _) => {
                 if let Ok(expr_type) = self.analyze_one(expr) {
                     if let Ok(expected_type) = self.analyze_one(right) {
                         let id = match *expr.clone() {
@@ -1570,7 +1596,7 @@ impl<'a> SemanticAnalyzer<'a> {
                     None
                 }
             }
-            (Expr::Literal(_), Expr::Typeof(expr)) => {
+            (_, Expr::Typeof(expr)) => {
                 if let Ok(expr_type) = self.analyze_one(expr) {
                     let id = match *expr.clone() {
                         Expr::Variable(t, _) => t,
@@ -1583,6 +1609,65 @@ impl<'a> SemanticAnalyzer<'a> {
                             self.refine_else(&expr_type, &expected_type),
                             id,
                         ))
+                    } else {
+                        None
+                    }
+                } else {
+                    None
+                }
+            }
+            (Expr::Get(expr, token), _) => {
+                if let Some(last_token) = expr.get_last_token() {
+                    if let Ok(get_type) = self.analyze_get(expr, token) {
+                        if let Ok(expected_type) = self.analyze_one(right) {
+                            let then_type = match &get_type {
+                                Type::Union(union) => {
+                                    let new_type: Vec<&(Type, Token)> = union
+                                        .iter()
+                                        .filter(|(ty, _)| ty == &expected_type)
+                                        .collect();
+                                    let refined_union: Vec<(Type, Token)> = new_type
+                                        .iter()
+                                        .map(|(_, t)| {
+                                            (self.get_var(&t.lexeme()).unwrap(), t.clone())
+                                        })
+                                        .collect();
+                                    match refined_union.len().cmp(&1) {
+                                        std::cmp::Ordering::Less => Type::Never,
+                                        std::cmp::Ordering::Equal => {
+                                            refined_union.first().unwrap().0.clone()
+                                        }
+                                        std::cmp::Ordering::Greater => Type::Union(refined_union),
+                                    }
+                                }
+                                _ => return None,
+                            };
+                            let else_type = match &get_type {
+                                Type::Union(union) => {
+                                    let new_type: Vec<&(Type, Token)> = union
+                                        .iter()
+                                        .filter(|(ty, _)| ty != &expected_type)
+                                        .collect();
+                                    let refined_union: Vec<(Type, Token)> = new_type
+                                        .iter()
+                                        .map(|(_, t)| {
+                                            (self.get_var(&t.lexeme()).unwrap(), t.clone())
+                                        })
+                                        .collect();
+                                    match refined_union.len().cmp(&1) {
+                                        std::cmp::Ordering::Less => Type::Never,
+                                        std::cmp::Ordering::Equal => {
+                                            refined_union.first().unwrap().0.clone()
+                                        }
+                                        std::cmp::Ordering::Greater => Type::Union(refined_union),
+                                    }
+                                }
+                                _ => return None,
+                            };
+                            Some((then_type, else_type, last_token))
+                        } else {
+                            None
+                        }
                     } else {
                         None
                     }
