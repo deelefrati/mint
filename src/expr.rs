@@ -244,6 +244,14 @@ impl Expr {
         let (x, y) = self.get_expr_placement();
         (self.get_line(), x, y)
     }
+
+    pub fn get_last_token(&self) -> Option<Token> {
+        match self {
+            Expr::Variable(t, _) => Some(t.clone()),
+            Expr::Get(expr, _) => expr.get_last_token(),
+            _ => None,
+        }
+    }
 }
 #[derive(PartialEq, Clone, Debug)]
 pub struct Callable {
