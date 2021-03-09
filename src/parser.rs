@@ -1,3 +1,4 @@
+#![allow(clippy::unnecessary_unwrap)]
 use crate::{
     error::{parser::ParserError, Error},
     expr::*,
@@ -272,7 +273,7 @@ impl<'a> Parser<'a> {
     }
 
     fn expression(&mut self, t: Option<(Token, VarType)>) -> Result<Expr, ParserError> {
-        if self.next_is(single(LeftBrace)).is_some() {
+        if t.is_some() && self.next_is(single(LeftBrace)).is_some() {
             self.object(t.unwrap())
         } else {
             self.or()
@@ -281,11 +282,12 @@ impl<'a> Parser<'a> {
 
     fn object(&mut self, t: (Token, VarType)) -> Result<Expr, ParserError> {
         let (token, var_type) = t;
+        //println!("{:?}\n{:?}", token, var_type);
         let mut variables = vec![];
         while self.next_is(single(RightBrace)).is_none() {
             let identifier = self.consume(Identifier)?;
             self.consume(Colon)?;
-            let expr = self.expression(None)?;
+            let expr = self.expression(Some((token.clone(), VarType::Object)))?;
             self.consume(Comma)?;
             variables.push((identifier, expr));
         }

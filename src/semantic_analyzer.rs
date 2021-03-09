@@ -37,6 +37,7 @@ impl std::fmt::Display for Type {
             Type::UserType(mint_type) => write!(f, "{}", mint_type.name.lexeme()),
             Type::Union(union) => write!(f, "{}", print_union(union)),
             Type::Alias(t, _) => write!(f, "{}", t.lexeme()),
+            Type::Object => write!(f, "Object"),
         }
     }
 }
@@ -53,6 +54,7 @@ pub enum Type {
     UserType(MintType),
     Union(Vec<(Type, Token)>),
     Alias(Token, Box<Type>),
+    Object,
 }
 
 impl std::convert::From<&VarType> for Type {
@@ -79,6 +81,7 @@ impl std::convert::From<&VarType> for Type {
                     .collect(),
             ),
             VarType::Never => Type::Never,
+            VarType::Object => Type::Object,
         }
     }
 }
@@ -993,6 +996,78 @@ impl<'a> SemanticAnalyzer<'a> {
                     Err(err) => Err(err),
                 }
             }
+            VarType::Object => {
+                if let Some(ty) = self.get_var(&t.lexeme()) {
+                    match ty {
+                        Type::UserType(user_type) => {
+                            let mut new_ty: Type = Type::Never;
+                            user_type.attrs.iter().for_each(|(_, value)| {
+                                println!("vl {:?}", value);
+                                match value {
+                                    VarType::UserType(t) => {
+                                        println!("{:?}", self.get_var(&t.lexeme()));
+                                        match self.get_var(&t.lexeme()) {
+                                            Some(Type::UserType(user_ty)) => {
+                                                if self.check_attrs(args, &user_ty.attrs) {
+                                                    new_ty = Type::UserType(user_ty);
+                                                }
+                                            }
+                                            Some(Type::Union(union)) => {
+                                                union.iter().for_each(|(ty, _)| {
+                                                    if let Type::UserType(user_ty) = ty {
+                                                        if self.check_attrs(args, &user_ty.attrs) {
+                                                            new_ty =
+                                                                Type::UserType(user_ty.clone());
+                                                        }
+                                                    }
+                                                })
+                                            }
+                                            _ => {}
+                                        }
+                                    }
+                                    VarType::Union(union) => union.iter().for_each(|(vt, _)| {
+                                        if let VarType::UserType(t) = vt {
+                                            if let Some(Type::UserType(user_ty)) =
+                                                self.get_var(&t.lexeme())
+                                            {
+                                                if self.check_attrs(args, &user_ty.attrs) {
+                                                    new_ty = Type::UserType(user_ty);
+                                                }
+                                            }
+                                        }
+                                    }),
+                                    _ => {}
+                                };
+                            });
+                            if matches!(new_ty, Type::UserType(_)) {
+                                Ok(new_ty)
+                            } else {
+                                Err(SemanticError::TypeNotIntantiable(
+                                    t.line(),
+                                    t.starts_at(),
+                                    t.ends_at(),
+                                    t.lexeme(),
+                                ))
+                            }
+                        }
+
+                        _ => Err(SemanticError::TypeNotIntantiable(
+                            t.line(),
+                            t.starts_at(),
+                            t.ends_at(),
+                            t.lexeme(),
+                        )),
+                    }
+                } else {
+                    Err(SemanticError::TypeNotDeclared(
+                        t.line(),
+                        t.starts_at(),
+                        t.ends_at(),
+                        t.lexeme(),
+                    ))
+                }
+                //panic!();
+            }
             VarType::UserType(token) => {
                 if let Some(type_) = self.get_var(&token.lexeme()) {
                     match type_.clone() {
@@ -1331,6 +1406,7 @@ impl<'a> SemanticAnalyzer<'a> {
                 if defined || matches!(type_, Type::Fun(_, _, _, _)) {
                     Some(type_)
                 } else {
+                    println!("failed {:?}\n{:?}\n\n\n", type_, defined);
                     None
                 }
             } else {

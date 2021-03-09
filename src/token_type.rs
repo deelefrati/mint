@@ -169,6 +169,7 @@ impl std::fmt::Display for VarType {
             VarType::UserType(mint_type) => write!(f, "{}", mint_type.lexeme()),
             VarType::Union(_) => write!(f, "Union"),
             VarType::Never => write!(f, "Never"),
+            VarType::Object => write!(f, "Object"),
         }
     }
 }
@@ -183,6 +184,7 @@ pub enum VarType {
     Literals(Literal),
     UserType(Token),
     Union(Vec<(VarType, Token)>),
+    Object,
 }
 impl From<Type> for VarType {
     fn from(x: Type) -> Self {
@@ -202,6 +204,7 @@ impl From<Type> for VarType {
             ),
             Type::Alias(t, _) => VarType::UserType(t),
             Type::Never => VarType::Never,
+            Type::Object => VarType::Object,
         }
     }
 }
