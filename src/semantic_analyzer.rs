@@ -1002,27 +1002,10 @@ impl<'a> SemanticAnalyzer<'a> {
                         Type::UserType(user_type) => {
                             let mut new_ty: Type = Type::Never;
                             user_type.attrs.iter().for_each(|(_, value)| {
-                                println!("vl {:?}", value);
                                 match value {
                                     VarType::UserType(t) => {
-                                        println!("{:?}", self.get_var(&t.lexeme()));
-                                        match self.get_var(&t.lexeme()) {
-                                            Some(Type::UserType(user_ty)) => {
-                                                if self.check_attrs(args, &user_ty.attrs) {
-                                                    new_ty = Type::UserType(user_ty);
-                                                }
-                                            }
-                                            Some(Type::Union(union)) => {
-                                                union.iter().for_each(|(ty, _)| {
-                                                    if let Type::UserType(user_ty) = ty {
-                                                        if self.check_attrs(args, &user_ty.attrs) {
-                                                            new_ty =
-                                                                Type::UserType(user_ty.clone());
-                                                        }
-                                                    }
-                                                })
-                                            }
-                                            _ => {}
+                                        if let Some(type_) = self.get_var(&t.lexeme()) {
+                                            new_ty = self.check_object(&type_, args);
                                         }
                                     }
                                     VarType::Union(union) => union.iter().for_each(|(vt, _)| {
@@ -1066,7 +1049,6 @@ impl<'a> SemanticAnalyzer<'a> {
                         t.lexeme(),
                     ))
                 }
-                //panic!();
             }
             VarType::UserType(token) => {
                 if let Some(type_) = self.get_var(&token.lexeme()) {
@@ -1102,6 +1084,30 @@ impl<'a> SemanticAnalyzer<'a> {
                 t.lexeme(),
             )),
         }
+    }
+
+    fn check_object(&mut self, type_: &Type, args: &[(Token, Expr)]) -> Type {
+        let mut new_ty: Type = Type::Never;
+        match type_ {
+            Type::UserType(user_ty) => {
+                if let Some(Type::UserType(user_ty)) = self.get_var(&user_ty.name.lexeme()) {
+                    if self.check_attrs(args, &user_ty.attrs) {
+                        new_ty = Type::UserType(user_ty);
+                    }
+                }
+            }
+            Type::Union(union) => {
+                for (ty, _) in union {
+                    if let Type::UserType(user_ty) = self.check_object(ty, args) {
+                        new_ty = Type::UserType(user_ty);
+                        break;
+                    }
+                }
+            }
+            Type::Alias(_, ty) => new_ty = self.check_object(ty, args),
+            _ => {}
+        };
+        new_ty
     }
 
     fn with_new_env<T>(&mut self, fun: impl Fn(&mut Self) -> T) -> T {
@@ -1403,10 +1409,14 @@ impl<'a> SemanticAnalyzer<'a> {
     fn get_var(&mut self, id: &str) -> Option<Type> {
         if let Some((type_, defined)) = self.symbol_table.get(id) {
             if !self.hoisting {
-                if defined || matches!(type_, Type::Fun(_, _, _, _)) {
+                if defined
+                    || matches!(
+                        type_,
+                        Type::Fun(_, _, _, _) | Type::UserType(_) | Type::Alias(_, _)
+                    )
+                {
                     Some(type_)
                 } else {
-                    println!("failed {:?}\n{:?}\n\n\n", type_, defined);
                     None
                 }
             } else {
@@ -1418,8 +1428,8 @@ impl<'a> SemanticAnalyzer<'a> {
     }
 
     fn compare_types(&self, found: &Type, expected: &Type) -> bool {
-        //println!("found: {:?} \n expected: {:?}", found, expected);
-        //println!();
+        // println!("found: {:?} \n expected: {:?}", found, expected);
+        // println!();
         match (found, expected) {
             (Type::UserType(a), Type::UserType(b)) => a.name.lexeme() == b.name.lexeme(),
             (Type::Literals(a), Type::Literals(b)) => a == b,
@@ -1520,7 +1530,12 @@ impl<'a> SemanticAnalyzer<'a> {
                 args.iter().all(|(t, expr)| {
                     if let Ok(expr_type) = self.analyze_one(expr) {
                         if let Some(attr_type) = attrs.get(&t.lexeme()) {
-                            self.compare_types(&expr_type, &attr_type.into())
+                            if let Type::UserType(user_ty) = attr_type.into() {
+                                let type_ = self.get_var(&user_ty.name.lexeme()).unwrap();
+                                self.compare_types(&expr_type, &type_)
+                            } else {
+                                self.compare_types(&expr_type, &attr_type.into())
+                            }
                         } else {
                             false
                         }
@@ -1546,7 +1561,12 @@ impl<'a> SemanticAnalyzer<'a> {
             let expr_type = self.analyze_one(expr)?;
             match attrs.get(&token.lexeme()) {
                 Some(attr_type) => {
-                    if !self.compare_types(&expr_type, &attr_type.into()) {
+                    let type_ = if let Type::UserType(user_ty) = attr_type.into() {
+                        self.get_var(&user_ty.name.lexeme()).unwrap()
+                    } else {
+                        attr_type.into()
+                    };
+                    if !self.compare_types(&expr_type, &type_) {
                         let (line, starts_at, ends_at) = expr.placement();
                         return Err(SemanticError::MismatchedTypes(
                             line,
