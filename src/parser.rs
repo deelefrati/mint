@@ -225,6 +225,7 @@ impl<'a> Parser<'a> {
         self.consume(LeftBrace)?;
         Ok(self.list_statements()?)
     }
+
     fn block(&mut self) -> Result<Stmt, ParserError> {
         Ok(Stmt::Block(self.list_statements()?))
     }

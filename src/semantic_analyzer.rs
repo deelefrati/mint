@@ -156,11 +156,11 @@ impl<'a> SemanticAnalyzer<'a> {
                     _ => None,
                 })
                 .collect::<Vec<&Vec<Stmt>>>();
-            let mut if_stmt_valid = false;
+            let mut if_stmts_valid = false;
             let mut block_valid = false;
             for (then, else_) in if_stmts.iter().rev() {
-                if_stmt_valid |= self.validate_return(then) && self.validate_return(else_);
-                if if_stmt_valid {
+                if_stmts_valid |= self.validate_return(then) && self.validate_return(else_);
+                if if_stmts_valid {
                     break;
                 }
             }
@@ -170,7 +170,7 @@ impl<'a> SemanticAnalyzer<'a> {
                     break;
                 }
             }
-            if_stmt_valid || block_valid
+            if_stmts_valid || block_valid
         }
     }
 
