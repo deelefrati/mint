@@ -34,7 +34,7 @@ fn main() {
                     let mut parser = Parser::new(vec);
                     match parser.parse() {
                         Ok(stmts) => {
-                            //println!("{:?}", stmts);
+                            println!("{:?}", stmts);
                             let mut semantic_analyzer = SemanticAnalyzer::new();
                             match semantic_analyzer.analyze(&stmts, None) {
                                 Ok(hoisted_stmts) => {
