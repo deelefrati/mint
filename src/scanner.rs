@@ -82,7 +82,6 @@ impl<'a> Scanner<'a> {
                 }
                 '\n' => self.newline(),
                 '|' => self.match_char_or_else('|', Or, Pipe),
-                '\n' => self.newline(),
                 '/' => self.slash_or_comment(),
                 ' ' | '\r' | '\t' => Blank,
                 '"' => {
