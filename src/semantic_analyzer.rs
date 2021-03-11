@@ -98,10 +98,10 @@ impl Type {
     }
 
     pub fn is_primitive(&self) -> bool {
-        match self {
-            Type::Num | Type::Null | Type::Str | Type::Never | Type::Literals(_) => true,
-            _ => false,
-        }
+        matches!(
+            self,
+            Type::Num | Type::Null | Type::Str | Type::Never | Type::Literals(_)
+        )
     }
 
     pub fn get_literal(&self) -> String {
@@ -1857,7 +1857,7 @@ impl<'a> SemanticAnalyzer<'a> {
             std::cmp::Ordering::Equal => {
                 let (type_, token) = refined_union.first().unwrap();
                 if type_.is_primitive() {
-                    return type_.clone();
+                    type_.clone()
                 } else if let Some(ty) = self.get_var(&token.lexeme()) {
                     ty
                 } else {
@@ -1878,7 +1878,7 @@ impl<'a> SemanticAnalyzer<'a> {
             std::cmp::Ordering::Equal => {
                 let (type_, token) = refined_union.first().unwrap();
                 if type_.is_primitive() {
-                    return type_.clone();
+                    type_.clone()
                 } else if let Some(ty) = self.get_var(&token.lexeme()) {
                     ty
                 } else {
