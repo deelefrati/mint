@@ -13,7 +13,7 @@ Mint is a minimal subset of TypeScript designed for teaching programming
 - [x] If statement
 - [x] Functions
 - [x] User Type
-- [ ] Unions
+- [x] Unions
 
 
 ## Instalation

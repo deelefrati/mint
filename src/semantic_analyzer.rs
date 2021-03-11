@@ -97,6 +97,13 @@ impl Type {
         }
     }
 
+    pub fn is_primitive(&self) -> bool {
+        match self {
+            Type::Num | Type::Null | Type::Str | Type::Never | Type::Literals(_) => true,
+            _ => false,
+        }
+    }
+
     pub fn get_literal(&self) -> String {
         match self {
             Type::Literals(literal) => match literal {
@@ -624,6 +631,11 @@ impl<'a> SemanticAnalyzer<'a> {
                         }
                         analyzer.analyze(modules, else_, fun_ret_type.clone()).ok();
                     });
+                    if else_.is_empty() {
+                        if let Some((_, else_type, t)) = refined_types.clone() {
+                            self.define(&t.lexeme(), else_type);
+                        }
+                    }
                 }
                 Stmt::Function(token, params, body, return_type, return_token) => {
                     let param_types = params
@@ -1843,7 +1855,10 @@ impl<'a> SemanticAnalyzer<'a> {
         match refined_union.len().cmp(&1) {
             std::cmp::Ordering::Less => Type::Never,
             std::cmp::Ordering::Equal => {
-                if let Some(ty) = self.get_var(&refined_union.first().unwrap().1.lexeme()) {
+                let (type_, token) = refined_union.first().unwrap();
+                if type_.is_primitive() {
+                    return type_.clone();
+                } else if let Some(ty) = self.get_var(&token.lexeme()) {
                     ty
                 } else {
                     Type::Never
@@ -1861,7 +1876,10 @@ impl<'a> SemanticAnalyzer<'a> {
         match refined_union.len().cmp(&1) {
             std::cmp::Ordering::Less => Type::Never,
             std::cmp::Ordering::Equal => {
-                if let Some(ty) = self.get_var(&refined_union.first().unwrap().1.lexeme()) {
+                let (type_, token) = refined_union.first().unwrap();
+                if type_.is_primitive() {
+                    return type_.clone();
+                } else if let Some(ty) = self.get_var(&token.lexeme()) {
                     ty
                 } else {
                     Type::Never
@@ -1880,7 +1898,7 @@ impl<'a> SemanticAnalyzer<'a> {
                     Some(Type::Alias(_, alias_type)) => self.ref_primitive(&alias_type, expected),
                     _ => found.clone(),
                 },
-                Type::Union(union) => self.ref_then_union(union.clone(), &expected),
+                Type::Union(union) => self.ref_else_union(union.clone(), &expected),
                 _ => found.clone(),
             }
         }

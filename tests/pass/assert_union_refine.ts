@@ -56,4 +56,21 @@ function g(ty: Type2) : AnotherPoint | AnotherAnotherPoint {
         return ty;
     }
 }
+type t = Point | string;
+
+function h(x: t) : string {
+    if (typeof x === "object") {
+        return x.x;
+    }
+    return x;
+}
+
+function i(x: t) : string {
+    if (typeof x === "string") {
+        return x;
+    }
+    return x.x;
+}
+
+
 
