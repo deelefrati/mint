@@ -271,6 +271,8 @@ impl<'a> Scanner<'a> {
             "string" => Some(Str),
             "boolean" => Some(Bool),
             "typeof" => Some(Typeof),
+            "import" => Some(Import),
+            "from" => Some(From),
             _ => None,
         }
     }

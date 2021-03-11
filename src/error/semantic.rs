@@ -28,6 +28,7 @@ pub enum SemanticError {
     TypeNotAssignable(usize, usize, usize, Type, String),
     IdenticalTypes(usize, usize, usize, Type),
     ConditionOverlap(usize, usize, usize, Type, Type),
+    ModuleNotResolved(usize, usize, usize, String),
 }
 
 impl SemanticError {
@@ -218,6 +219,14 @@ impl SemanticError {
                     Some(*ends_at),
                     format!("This condition is invalid since the types \"{}\" and \"{}\" have no overlap.", left, right),
                     Some(print_marker(*starts_at, *ends_at,None ))),
+                SemanticError::ModuleNotResolved(line, starts_at, ends_at, module_name) => static_error_template(
+                    error_type,
+                    source_vec,
+                    *line,
+                    Some(*starts_at),
+                    Some(*ends_at),
+                    format!("'{}' could not be resolved", module_name),
+                    Some(print_marker(*starts_at, *ends_at, None))),
         }
     }
 }

@@ -2,6 +2,7 @@ use crate::{
     environment::Environment,
     error::{semantic::SemanticError, Error},
     expr::*,
+    import::Module,
     mint_type::MintType,
     stmt::Stmt,
     token::Token,
@@ -33,7 +34,7 @@ impl std::fmt::Display for Type {
             Type::Str => write!(f, "String"),
             Type::Never => write!(f, "Never"),
             Type::Literals(literal) => write!(f, "{}", literal),
-            Type::Fun(_, _, _, _) => write!(f, "Function"),
+            Type::Fun(_, _, _, _) | Type::MintFun(_, _, _) => write!(f, "function"),
             Type::UserType(mint_type) => write!(f, "{}", mint_type.name.lexeme()),
             Type::Union(union) => write!(f, "{}", print_union(union)),
             Type::Alias(t, _) => write!(f, "{}", t.lexeme()),
@@ -51,6 +52,7 @@ pub enum Type {
     Never,
     Literals(Literal),
     Fun(SmntEnv, Vec<VarType>, VarType, Vec<String>),
+    MintFun(String, VarType, usize),
     UserType(MintType),
     Union(Vec<(Type, Token)>),
     Alias(Token, Box<Type>),
@@ -82,6 +84,7 @@ impl std::convert::From<&VarType> for Type {
             ),
             VarType::Never => Type::Never,
             VarType::Object => Type::Object,
+            VarType::MintFun => Type::MintFun("default".to_string(), VarType::Never, 0),
         }
     }
 }
@@ -238,6 +241,7 @@ impl<'a> SemanticAnalyzer<'a> {
 
     pub fn analyze(
         &mut self,
+        modules: &Module,
         stmts: &'a [Stmt],
         fun_ret_type: Option<VarType>,
     ) -> Result<Vec<Stmt>, Vec<Error>> {
@@ -594,7 +598,9 @@ impl<'a> SemanticAnalyzer<'a> {
                     Err(semantic_error) => self.errors.push(Error::Semantic(semantic_error)),
                 },
                 Stmt::Block(stmts) => self.with_new_env(|analyzer| {
-                    if let Err(nested_errors) = analyzer.analyze(stmts, fun_ret_type.clone()) {
+                    if let Err(nested_errors) =
+                        analyzer.analyze(modules, stmts, fun_ret_type.clone())
+                    {
                         for err in nested_errors {
                             analyzer.errors.push(err);
                         }
@@ -610,13 +616,13 @@ impl<'a> SemanticAnalyzer<'a> {
                         if let Some((then_type, _, t)) = refined_types.clone() {
                             analyzer.define(&t.lexeme(), then_type);
                         }
-                        analyzer.analyze(then, fun_ret_type.clone()).ok();
+                        analyzer.analyze(modules, then, fun_ret_type.clone()).ok();
                     });
                     self.with_new_env(|analyzer| {
                         if let Some((_, else_type, t)) = refined_types.clone() {
                             analyzer.define(&t.lexeme(), else_type);
                         }
-                        analyzer.analyze(else_, fun_ret_type.clone()).ok();
+                        analyzer.analyze(modules, else_, fun_ret_type.clone()).ok();
                     });
                 }
                 Stmt::Function(token, params, body, return_type, return_token) => {
@@ -656,7 +662,9 @@ impl<'a> SemanticAnalyzer<'a> {
                                 ));
                             }
                         }
-                        analyzer.analyze(body, Some(return_type.clone())).ok();
+                        analyzer
+                            .analyze(modules, body, Some(return_type.clone()))
+                            .ok();
                         let mut declared_keys = vec![];
                         analyzer.declared_keys(body, &mut declared_keys);
                         (analyzer.symbol_table.clone(), declared_keys)
@@ -764,6 +772,38 @@ impl<'a> SemanticAnalyzer<'a> {
                     if self.check_type(var_type) {
                         let type_: Type = var_type.into();
                         self.define(&token.lexeme(), Type::Alias(token.clone(), type_.into()));
+                    }
+                }
+                Stmt::ImportStmt(token, imports) => {
+                    if let Some(module) = modules.get(&token.lexeme()) {
+                        for name in imports {
+                            if let Some(import) = module.iter().find_map(|import| {
+                                if import.name == name.lexeme() {
+                                    Some(import)
+                                } else {
+                                    None
+                                }
+                            }) {
+                                self.define(&import.name, import.t.clone());
+                            } else {
+                                self.errors.push(Error::Semantic(
+                                    SemanticError::ModuleNotResolved(
+                                        token.line(),
+                                        token.starts_at(),
+                                        token.ends_at(),
+                                        format!("{}.{}", token.lexeme(), name.lexeme()),
+                                    ),
+                                ));
+                            }
+                        }
+                    } else {
+                        self.errors
+                            .push(Error::Semantic(SemanticError::ModuleNotResolved(
+                                token.line(),
+                                token.starts_at(),
+                                token.ends_at(),
+                                token.lexeme(),
+                            )));
                     }
                 }
             }
@@ -1346,6 +1386,7 @@ impl<'a> SemanticAnalyzer<'a> {
             Value::Type(_) => Type::Null,
             Value::TypeInstance(_) => Type::Null,
             Value::TypeAlias(_) => Type::Null,
+            Value::MintFun(_, _) => Type::Null,
         }
     }
 
@@ -1355,54 +1396,85 @@ impl<'a> SemanticAnalyzer<'a> {
         args: &[Expr],
         original_expr: &Expr,
     ) -> Result<Type, SemanticError> {
-        if let Type::Fun(env, params_types, return_type, declared_keys) =
-            self.analyze_one(callee)?
-        {
-            if params_types.len() != args.len() {
-                let (line, starts_at, ends_at) = original_expr.placement();
-                return Err(SemanticError::ArityMismatch(
-                    line,
-                    starts_at,
-                    ends_at,
-                    params_types.len(),
-                    args.len(),
-                ));
-            } else if self.analyzing_function.is_empty() {
-                let old_env = std::mem::replace(&mut self.symbol_table, env);
-                for (arg, param_var_type) in args.iter().zip(&params_types) {
-                    let mut arg_type = self.analyze_one(arg)?;
-                    arg_type = self.user_type_or_alias(&arg_type);
+        match self.analyze_one(callee)? {
+            Type::Fun(env, params_types, return_type, declared_keys) => {
+                if params_types.len() != args.len() {
+                    let (line, starts_at, ends_at) = original_expr.placement();
+                    return Err(SemanticError::ArityMismatch(
+                        line,
+                        starts_at,
+                        ends_at,
+                        params_types.len(),
+                        args.len(),
+                    ));
+                } else if self.analyzing_function.is_empty() {
+                    let old_env = std::mem::replace(&mut self.symbol_table, env);
+                    for (arg, param_var_type) in args.iter().zip(&params_types) {
+                        let mut arg_type = self.analyze_one(arg)?;
+                        arg_type = self.user_type_or_alias(&arg_type);
 
-                    let mut param_type: Type = param_var_type.into();
-                    param_type = self.user_type_or_alias(&param_type);
+                        let mut param_type: Type = param_var_type.into();
+                        param_type = self.user_type_or_alias(&param_type);
 
-                    if !self.compare_types(&arg_type, &param_type) {
-                        let (line, (starts_at, ends_at)) =
-                            (arg.get_line(), arg.get_expr_placement());
-                        return Err(SemanticError::MismatchedTypes(
-                            line, starts_at, ends_at, param_type, arg_type,
-                        ));
+                        if !self.compare_types(&arg_type, &param_type) {
+                            let (line, (starts_at, ends_at)) =
+                                (arg.get_line(), arg.get_expr_placement());
+                            return Err(SemanticError::MismatchedTypes(
+                                line, starts_at, ends_at, param_type, arg_type,
+                            ));
+                        }
                     }
+                    for key in &declared_keys {
+                        if self.get_var(&key).is_none() {
+                            let (line, starts_at, ends_at) = callee.placement();
+                            let fun_name = callee.get_token().lexeme();
+                            self.errors.push(Error::Semantic(SemanticError::UnboundVar(
+                                line,
+                                starts_at,
+                                ends_at,
+                                key.to_string(),
+                                fun_name,
+                            )));
+                        }
+                    }
+                    self.symbol_table = old_env;
                 }
-                for key in &declared_keys {
-                    if self.get_var(&key).is_none() {
-                        let (line, starts_at, ends_at) = callee.placement();
-                        let fun_name = callee.get_token().lexeme();
-                        self.errors.push(Error::Semantic(SemanticError::UnboundVar(
+                Ok((&return_type).into())
+            }
+            Type::MintFun(id, var_type, arity) => {
+                if arity != args.len() {
+                    let (line, starts_at, ends_at) = original_expr.placement();
+                    return Err(SemanticError::ArityMismatch(
+                        line,
+                        starts_at,
+                        ends_at,
+                        arity,
+                        args.len(),
+                    ));
+                } else if &id == "equal" {
+                    let mut left = self.analyze_one(&args[0])?;
+                    left = self.user_type_or_alias(&left);
+
+                    let mut right = self.analyze_one(&args[1])?;
+                    right = self.user_type_or_alias(&right);
+                    if !self.compare_types(&left, &right) {
+                        let (line, starts_at, ends_at) = original_expr.placement();
+                        return Err(SemanticError::IncompatibleComparation(
                             line,
                             starts_at,
                             ends_at,
-                            key.to_string(),
-                            fun_name,
-                        )));
+                            ComparationOp::StrictEqual,
+                            left,
+                            right,
+                        ));
                     }
                 }
-                self.symbol_table = old_env;
+                Ok((&var_type).into())
             }
-            Ok((&return_type).into())
-        } else {
-            let (line, starts_at, ends_at) = callee.placement();
-            Err(SemanticError::FunctionNotDeclared(line, starts_at, ends_at))
+            _ => {
+                let (line, starts_at, ends_at) = callee.placement();
+                Err(SemanticError::FunctionNotDeclared(line, starts_at, ends_at))
+            }
         }
     }
 
@@ -1489,6 +1561,7 @@ impl<'a> SemanticAnalyzer<'a> {
                 }
                 Stmt::TypeStmt(_, _) => {}
                 Stmt::TypeAlias(_, _) => {}
+                Stmt::ImportStmt(_, _) => {}
             }
         }
     }

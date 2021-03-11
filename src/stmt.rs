@@ -20,4 +20,5 @@ pub enum Stmt {
     Return(Token, Option<Expr>),
     TypeStmt(Token, HashMap<String, VarType>),
     TypeAlias(Token, (VarType, Token)),
+    ImportStmt(Token, Vec<Token>),
 }

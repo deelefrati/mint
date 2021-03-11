@@ -1,11 +1,8 @@
 #![allow(clippy::large_enum_variant)]
-use crate::environment::Environment;
-use crate::error::runtime::RuntimeError;
-use crate::interpreter::Interpreter;
-use crate::mint_type::MintType;
-use crate::stmt::Stmt;
-use crate::token::Token;
-use crate::token_type::VarType;
+use crate::{
+    environment::Environment, error::runtime::RuntimeError, interpreter::Interpreter,
+    mint_type::MintType, semantic_analyzer::Type, stmt::Stmt, token::Token, token_type::VarType,
+};
 use std::{
     collections::HashMap,
     hash::{Hash, Hasher},
@@ -107,6 +104,7 @@ impl std::fmt::Display for Value {
                 write!(f, "Object: {{\n{}}}", print_attrs(type_instance))
             }
             Value::TypeAlias(t) => write!(f, "{}", t.lexeme()),
+            Value::MintFun(string, _) => write!(f, "{}", string.to_string()),
         }
     }
 }
@@ -117,6 +115,7 @@ pub enum Value {
     Number(f64),
     Str(String),
     Fun(Callable),
+    MintFun(String, Type),
     Type(MintType),
     TypeInstance(HashMap<String, Value>),
     TypeAlias(Token),

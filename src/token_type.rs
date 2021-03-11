@@ -50,7 +50,9 @@ impl Display for TokenType {
             TokenType::Eof => write!(f, "eof"),
             TokenType::Assert => write!(f, "assert"),
             TokenType::Pipe => write!(f, "|"),
-            TokenType::Typeof => write!(f, "Typeof"),
+            TokenType::Typeof => write!(f, "typeof"),
+            TokenType::Import => write!(f, "import"),
+            TokenType::From => write!(f, "from"),
         }
     }
 }
@@ -116,6 +118,8 @@ pub enum TokenType {
     This,
     Const,
     Typeof,
+    Import,
+    From,
 
     Eof,
 }
@@ -165,7 +169,7 @@ impl std::fmt::Display for VarType {
             VarType::Boolean => write!(f, "Boolean"),
             VarType::String => write!(f, "String"),
             VarType::Literals(literal) => write!(f, "{}", literal),
-            VarType::Function => write!(f, "Function"),
+            VarType::Function | VarType::MintFun => write!(f, "Function"),
             VarType::UserType(mint_type) => write!(f, "{}", mint_type.lexeme()),
             VarType::Union(_) => write!(f, "Union"),
             VarType::Never => write!(f, "Never"),
@@ -180,6 +184,7 @@ pub enum VarType {
     Boolean,
     Null,
     Function,
+    MintFun,
     Never,
     Literals(Literal),
     UserType(Token),
@@ -205,6 +210,7 @@ impl From<Type> for VarType {
             Type::Alias(t, _) => VarType::UserType(t),
             Type::Never => VarType::Never,
             Type::Object => VarType::Object,
+            Type::MintFun(_, _, _) => VarType::MintFun,
         }
     }
 }
