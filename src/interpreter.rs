@@ -2,6 +2,7 @@ use crate::{
     environment::Environment,
     error::{runtime::RuntimeError, Error},
     expr::*,
+    import::Module,
     mint_type::MintType,
     stmt::*,
     token::Token,
@@ -13,6 +14,7 @@ type InterpreterResult = Result<Value, RuntimeError>;
 #[derive(Default)]
 pub struct Interpreter {
     environment: Environment<Value>,
+    modules: Module,
 }
 
 impl Interpreter {
@@ -207,10 +209,10 @@ impl Interpreter {
                     Value::Boolean(_) => Value::Str("boolean".to_string()),
                     Value::Number(_) => Value::Str("number".to_string()),
                     Value::Str(_) => Value::Str("string".to_string()),
-                    Value::Fun(_) => Value::Str("object".to_string()),
-                    Value::Type(_) => Value::Str("object".to_string()),
-                    Value::TypeInstance(_) => Value::Str("object".to_string()),
-                    Value::TypeAlias(_) => Value::Str("object".to_string()),
+                    Value::Fun(_) | Value::MintFun(_, _) => Value::Str("function".to_string()),
+                    Value::TypeInstance(_) | Value::TypeAlias(_) | Value::Type(_) => {
+                        Value::Str("object".to_string())
+                    }
                 };
                 Ok(value)
             }
@@ -246,26 +248,40 @@ impl Interpreter {
         callee: &Expr,
         params: &[Expr],
     ) -> Result<Value, RuntimeError> {
-        if let Value::Fun(fun) = self.eval_expr(callee)? {
-            if fun.arity() == params.len() {
-                let mut args = Vec::with_capacity(params.len());
-                for expr in params {
-                    args.push(self.eval_expr(expr)?);
+        match self.eval_expr(callee)? {
+            Value::Fun(fun) => {
+                if fun.arity() == params.len() {
+                    let mut args = Vec::with_capacity(params.len());
+                    for expr in params {
+                        args.push(self.eval_expr(expr)?);
+                    }
+                    fun.call(self, args.as_slice())
+                } else {
+                    let (line, starts_at, ends_at) = expr.placement();
+                    Err(RuntimeError::ArityMismatch(
+                        line,
+                        starts_at,
+                        ends_at,
+                        fun.arity(),
+                        params.len(),
+                    ))
                 }
-                fun.call(self, args.as_slice())
-            } else {
-                let (line, starts_at, ends_at) = expr.placement();
-                Err(RuntimeError::ArityMismatch(
-                    line,
-                    starts_at,
-                    ends_at,
-                    fun.arity(),
-                    params.len(),
-                ))
             }
-        } else {
-            let (line, starts_at, ends_at) = callee.placement();
-            Err(RuntimeError::NotCallable(line, starts_at, ends_at))
+            Value::MintFun(string, _ty) => match string.as_str() {
+                "equal" => self.eval_comp_expr(
+                    &params[0],
+                    &(ComparationOp::StrictEqual, Token::default()),
+                    &params[1],
+                ),
+                _ => {
+                    let (line, starts_at, ends_at) = callee.placement();
+                    Err(RuntimeError::NotCallable(line, starts_at, ends_at))
+                }
+            },
+            _ => {
+                let (line, starts_at, ends_at) = callee.placement();
+                Err(RuntimeError::NotCallable(line, starts_at, ends_at))
+            }
         }
     }
 
@@ -391,12 +407,29 @@ impl Interpreter {
                     .define(id.lexeme(), Value::TypeAlias(id.clone()));
                 Ok(())
             }
+            Stmt::ImportStmt(token, imports) => {
+                let module = self.modules.get(&token.lexeme()).unwrap();
+                for name in imports {
+                    if let Some(import) = module.iter().find_map(|import| {
+                        if import.name == name.lexeme() {
+                            Some(import)
+                        } else {
+                            None
+                        }
+                    }) {
+                        self.environment
+                            .define(import.name.clone(), import.v.clone());
+                    }
+                }
+                Ok(())
+            }
         }
     }
 
-    pub fn interpret(&mut self, stmts: &[Stmt]) -> Option<Error> {
+    pub fn interpret(&mut self, modules: Module, stmts: &[Stmt]) -> Option<Error> {
         let global = HashMap::new();
         self.environment = Environment::new(global);
+        self.modules = modules;
         for stmt in stmts {
             if let Err(error) = self.eval(stmt) {
                 return Some(Error::Runtime(error));

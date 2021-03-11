@@ -3,6 +3,7 @@ pub use lines::*;
 pub mod environment;
 pub mod error;
 pub mod expr;
+pub mod import;
 pub mod interpreter;
 pub mod mint_type;
 pub mod parser;

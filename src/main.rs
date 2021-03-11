@@ -1,5 +1,6 @@
 use mint::create_lines_vec;
 use mint::error::Error;
+use mint::import::Import;
 use mint::interpreter::Interpreter;
 use mint::parser::Parser;
 use mint::scanner::Scanner;
@@ -28,18 +29,21 @@ fn main() {
             let lines_vec = create_lines_vec(&source_code);
             let mut scan = Scanner::new(&source_code);
             let tokens = scan.scan_tokens();
+            let modules = Import::imports();
 
             match tokens {
                 Ok(vec) => {
                     let mut parser = Parser::new(vec);
                     match parser.parse() {
                         Ok(stmts) => {
-                            println!("{:?}", stmts);
+                            //println!("{:#?}", stmts);
                             let mut semantic_analyzer = SemanticAnalyzer::new();
-                            match semantic_analyzer.analyze(&stmts, None) {
+                            match semantic_analyzer.analyze(&modules, &stmts, None) {
                                 Ok(hoisted_stmts) => {
                                     let mut interpreter = Interpreter::default();
-                                    if let Some(error) = interpreter.interpret(&hoisted_stmts) {
+                                    if let Some(error) =
+                                        interpreter.interpret(modules, &hoisted_stmts)
+                                    {
                                         error.show_error(Some(path), Some(&lines_vec));
                                         exit(1);
                                     }

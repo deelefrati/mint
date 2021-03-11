@@ -203,8 +203,32 @@ impl<'a> Parser<'a> {
             self.console()
         } else if self.consume(LeftBrace).is_ok() {
             self.block()
+        } else if self.consume(Import).is_ok() {
+            self.import()
         } else {
             self.expression_statement()
+        }
+    }
+
+    fn import(&mut self) -> Result<Stmt, ParserError> {
+        self.consume(LeftBrace)?;
+        let mut imports = vec![self.consume(Identifier)?];
+        while self.next_is(single(Comma)).is_some() {
+            imports.push(self.consume(Identifier)?);
+        }
+        self.consume(RightBrace)?;
+        self.consume(From)?;
+        if let Some((_, token)) = self.next_is(|tt| match tt {
+            TokenType::String(_) => Some(()),
+            _ => None,
+        }) {
+            self.consume(Semicolon)?;
+            Ok(Stmt::ImportStmt(token, imports))
+        } else {
+            Err(ParserError::Missing(
+                self.current_line,
+                TokenType::String(" ".to_string()),
+            ))
         }
     }
 
@@ -283,7 +307,6 @@ impl<'a> Parser<'a> {
 
     fn object(&mut self, t: (Token, VarType)) -> Result<Expr, ParserError> {
         let (token, var_type) = t;
-        //println!("{:?}\n{:?}", token, var_type);
         let mut variables = vec![];
         while self.next_is(single(RightBrace)).is_none() {
             let identifier = self.consume(Identifier)?;
