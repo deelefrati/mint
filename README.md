@@ -145,9 +145,6 @@ function returnStringOrNumber(n : number) : string | number {
 }
 ```
 
-} 
-
-
 ### User defined types
 
 To define a new type, use the keyword `type` folowed by the name of the new type.
