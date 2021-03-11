@@ -64,6 +64,7 @@ cargo install --path .
   ```
 There is also the `null` type, which represents an empty value.
 
+
 ### Operators
 Mint has the following types of operators:
 
@@ -120,6 +121,32 @@ const some_string : string = "hello, world!";
 
 const some_var: str = 10 # this will raise an error
 ```
+
+### Union
+A union type is type formed from two or more other types, representing values that may be any one of those types. It's possible to write a union like this:
+
+```typescript
+const id : number | string = 007;
+```
+
+Unions can be used in define parameters type and returns types as well.
+
+```typescript
+function printId(id: number | string) {
+  console.log("Your ID is: " + id);
+}
+
+function returnStringOrNumber(n : number) : string | number {
+    if (number > 0) {
+        return n;
+    }else{
+        return "Invalid";
+    }
+}
+```
+
+} 
+
 
 ### User defined types
 
@@ -188,6 +215,65 @@ Control flow can be done with `if/else`
 ```
 
 > You can write any valid code inside a if/else body.
+
+#### Type reninement
+When working with joins, it is common to need to specify the type. For this, we use the `typeof` operator to distinguish the types. 
+
+```typescript
+function (x: string | number | boolean) {
+    if (typeof x === "string"){
+        console.log(x); // In this scope, the type of 'x' is only string.
+    }else {
+        console.log(x); // Right here, 'x' type is 'number | boolean';
+        if (typeof x === "number"){
+            console.log(x); // Once we refined 'x' again, his type is number;
+        }else{
+            console.log(x); // Finally, 'x' type is boolean;
+        }
+    }
+}
+```
+
+For unions containing only primitive types, the `typeof` operator can do the job for the refinement. However, if we have a union of two or more user types it's not possible to differentiate them. Like the following example:
+
+```typescript
+type FirstType = {
+    x: number,
+}
+
+
+type SecondType = {
+    x: string,
+}
+
+function show(param: FirstType | AnotherType) : number {
+    return param.x; // There's no way to specify if the field 'x' is number or string before runtime.
+} 
+```
+
+To resolve this case, it's necessary to create a field with a literal type and verify like this:
+
+```typescript
+type FirstType = {
+    label: "first type", 
+    x: number,
+}
+
+
+type SecondType = {
+    label: "second type", 
+    x: string,
+}
+
+function show(param: FirstType | AnotherType) : number {
+    if (param.label === "first type") {
+        return param.x; // param is now from type 'FirstType', thus the type of the field 'x' is only number. 
+    } else {
+        param.x; // param is now from type 'SecondType', thus the type of the field 'x' is only string.
+        return 0;
+    }
+}
+```
 
 ### Assertion
 
