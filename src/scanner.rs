@@ -263,7 +263,6 @@ impl<'a> Scanner<'a> {
             "log" => Some(Log),
             "console" => Some(Console),
             "return" => Some(Return),
-            "this" => Some(This),
             "true" => Some(True),
             "const" => Some(Const),
             "number" => Some(Num),

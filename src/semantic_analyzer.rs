@@ -615,7 +615,22 @@ impl<'a> SemanticAnalyzer<'a> {
                 }),
                 Stmt::IfStmt(cond, then, else_) => {
                     match self.analyze_one(&cond) {
-                        Ok(t) => self.insert(&cond, t),
+                        Ok(t) => {
+                            if self.compare_types(&t, &Type::Bool) {
+                                self.insert(&cond, t);
+                            } else {
+                                let (starts_at, ends_at) = cond.get_expr_placement();
+                                println!("{:?}, {:?}, {:?}", starts_at, ends_at, t);
+                                self.errors
+                                    .push(Error::Semantic(SemanticError::MismatchedTypes(
+                                        cond.get_line(),
+                                        starts_at,
+                                        ends_at,
+                                        Type::Bool,
+                                        t.to_primitive(),
+                                    )));
+                            }
+                        }
                         Err(semantic_error) => self.errors.push(Error::Semantic(semantic_error)),
                     }
                     let refined_types = self.try_refine(&cond);

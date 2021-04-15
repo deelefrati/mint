@@ -40,7 +40,7 @@ console.assert(f(true) === "string");
 console.assert(f(false) === "another string");
 
 function g(x: number): number {
-  if (x) {
+  if (x === 10) {
     return x;
   } else {
     return x;
@@ -48,8 +48,8 @@ function g(x: number): number {
 }
 
 function h(x: number): number {
-  if (x) {
-    if (x) {
+  if (x === 10) {
+    if (x === 10) {
     } else {
     }
     return x;
@@ -59,14 +59,14 @@ function h(x: number): number {
 }
 
 function i(x: number): number {
-  if (x) {
+  if (x === 10) {
   }
   return x;
 }
 
 function j(x: number): number {
-  if (x) {
-    if (x) {
+  if (x === 10) {
+    if (x === 10) {
       return x;
     } else {
       return x;
@@ -77,11 +77,11 @@ function j(x: number): number {
 }
 
 function k(x: number): number {
-  if (x) {
+  if (x === 10) {
     return x;
   } else {
-    if (x) {
-      if (x) {
+    if (x === 10) {
+      if (x === 10) {
       } else {
       }
       return x;
@@ -92,13 +92,13 @@ function k(x: number): number {
 }
 
 function l(x: number): number {
-  if (x) {
+  if (x === 10) {
     return x;
   } else {
     return x;
   }
 
-  if (x) {
+  if (x === 10) {
   } else {
   }
 }
