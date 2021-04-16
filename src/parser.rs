@@ -247,7 +247,7 @@ impl<'a> Parser<'a> {
 
     fn if_block(&mut self) -> Result<Vec<Stmt>, ParserError> {
         self.consume(LeftBrace)?;
-        Ok(self.list_statements()?)
+        self.list_statements()
     }
 
     fn block(&mut self) -> Result<Stmt, ParserError> {
